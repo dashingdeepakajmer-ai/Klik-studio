@@ -5,168 +5,81 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>KLIK Product Studio</title>
   <style>
-    body { margin: 0; background: #111218; color: #f3f4f6; font-family: system-ui, sans-serif; padding: 16px 16px 80px; }
-    .card { background: #1a1c24; border-radius: 16px; padding: 14px; margin-bottom: 14px; border: 1px solid #2a2d3a; }
-    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    button { background: #7557ff; color: #fff; border: none; border-radius: 12px; padding: 12px 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
-    button.sec { background: #272a36; font-size: 13px; padding: 10px 12px; }
-    .full { width: 100%; padding: 15px; font-size: 16px; }
-    select { background: #272a36; color: #fff; border: 1px solid #383c4c; border-radius: 10px; padding: 8px; }
-    #statusBox { display: none; background: #1f2230; border-left: 4px solid #7557ff; padding: 12px; border-radius: 10px; margin-bottom: 14px; font-size: 14px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    body { margin: 0; background: #111218; color: #f3f4f6; font-family: system-ui, sans-serif; padding: 14px 14px 80px; }
+    .card { background: #1a1c24; border-radius: 16px; padding: 13px; margin-bottom: 12px; border: 1px solid #2a2d3a; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    button { background: #7557ff; color: #fff; border: none; border-radius: 12px; padding: 11px 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    button.sec { background: #272a36; font-size: 12px; padding: 8px 11px; }
+    .full { width: 100%; padding: 14px; font-size: 16px; }
+    select { background: #272a36; color: #fff; border: 1px solid #383c4c; border-radius: 10px; padding: 8px; font-size: 13px; }
+    label { font-size: 12px; color: #9ca3af; display: inline-flex; align-items: center; gap: 5px; }
+    #statusBox { display: none; background: #1f2230; border-left: 4px solid #7557ff; padding: 11px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
     .item { background: #1a1c24; border-radius: 16px; padding: 12px; border: 1px solid #2a2d3a; }
-    .item canvas { width: 100%; border-radius: 12px; display: block; }
-    .bar { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; }
+    .item canvas { width: 100%; border-radius: 12px; display: block; touch-action: none; cursor: grab; }
+    .bar { display: flex; justify-content: space-between; align-items: center; margin-top: 10px; gap: 6px; flex-wrap: wrap; }
     .dots { display: flex; gap: 6px; }
-    .dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff4; cursor: pointer; }
+    .dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff6; cursor: pointer; }
+    #retouchModal { display:none; position:fixed; inset:0; background:#0d0e14; z-index:99; padding:14px; flex-direction:column; }
+    #retouchCanvas { flex:1; width:100%; object-fit:contain; background:repeating-conic-gradient(#222 0% 25%, #2e313d 0% 50%) 50%/20px 20px; border-radius:12px; touch-action:none; }
   </style>
 </head>
 <body>
-  <h2 style="margin:0 0 4px;">KLIK Product Studio</h2>
-  <div style="font-size:13px;color:#9ca3af;margin-bottom:16px;">Auto Cutout • Contrast BG • Shadow • Fixed Logo</div>
-
+  <h2 style="margin:0 0 2px;">KLIK Product Studio</h2>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">Drag & Move • Magic Auto/Manual Retouch • Smart Color Scenes</div>
   <div class="card">
-    <div style="font-size:13px;font-weight:600;margin-bottom:10px;">1. Fixed Brand Logo</div>
-    <div class="row">
-      <img id="logoThumb" style="width:38px;height:38px;object-fit:contain;background:#272a36;border-radius:8px;" />
-      <button class="sec" id="logoBtn">Upload PNG Logo</button>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">1. Brand Logo & Canvas Setup</div>
+    <div class="row" style="margin-bottom:8px;">
+      <img id="logoThumb" style="width:36px;height:36px;object-fit:contain;background:#272a36;border-radius:8px;" />
+      <button class="sec" id="logoBtn">Upload Logo</button>
       <input type="file" id="logoInput" accept="image/*" hidden />
       <select id="logoPos">
-        <option value="tr">Top Right</option>
-        <option value="tl">Top Left</option>
-        <option value="br">Bottom Right</option>
-        <option value="bl">Bottom Left</option>
+        <option value="tr">Logo: Top Right</option>
+        <option value="tl">Logo: Top Left</option>
+        <option value="br">Logo: Bottom Right</option>
+        <option value="bl">Logo: Bottom Left</option>
       </select>
-      <input type="range" id="logoSize" min="8" max="28" value="15" style="width:80px;" />
+      <label>Logo <input type="range" id="logoSize" min="8" max="28" value="14" style="width:65px;" /></label>
+    </div>
+    <div class="row">
+      <select id="ratioSel">
+        <option value="1:1">1:1 Square</option>
+        <option value="4:5">4:5 Portrait</option>
+        <option value="9:16">9:16 Story</option>
+        <option value="16:9">16:9 Banner</option>
+      </select>
+      <label><input type="checkbox" id="shadow3d" checked /> 3D Border Shadow</label>
+      <label><input type="checkbox" id="autoClean" checked /> Auto Clean</label>
     </div>
   </div>
-
   <div class="card">
-    <div style="font-size:13px;font-weight:600;margin-bottom:10px;">2. Batch Process Raw Photos</div>
     <button class="full" id="pickBtn">+ Select Product Photos (Batch)</button>
     <input type="file" id="batchInput" accept="image/*" multiple hidden />
+    <input type="file" id="variantInput" accept="image/*" multiple hidden />
   </div>
-
   <div id="statusBox"></div>
-  <div id="actionsBar" style="display:none;margin-bottom:14px;">
+  <div id="actionsBar" style="display:none;margin-bottom:12px;">
     <button class="full" style="background:#10b981;" id="downloadAllBtn">Download All HD Photos</button>
   </div>
   <div class="grid" id="gallery"></div>
 
-  <script>
-    const SHADES = [
-      { top: '#3c424f', bottom: '#232730' },
-      { top: '#f8f6f1', bottom: '#e6e1d6' },
-      { top: '#eef0f4', bottom: '#d8dce3' },
-      { top: '#fcf9f2', bottom: '#efe7d8' },
-      { top: '#edf4fc', bottom: '#d7e5f5' }
-    ];
-    let logoImg = null, removeBgFn = null;
-    const items = [], statusBox = document.getElementById('statusBox'), gallery = document.getElementById('gallery');
-    const logoThumb = document.getElementById('logoThumb'), logoPos = document.getElementById('logoPos'), logoSize = document.getElementById('logoSize');
-
-    function showStatus(t) { statusBox.style.display = 'block'; statusBox.textContent = t; }
-
-    function loadLogo() {
-      const d = localStorage.getItem('klik_logo');
-      if (localStorage.getItem('klik_pos')) logoPos.value = localStorage.getItem('klik_pos');
-      if (localStorage.getItem('klik_size')) logoSize.value = localStorage.getItem('klik_size');
-      if (d) { const i = new Image(); i.onload = () => { logoImg = i; logoThumb.src = d; }; i.src = d; }
-    }
-    loadLogo();
-
-    document.getElementById('logoBtn').onclick = () => document.getElementById('logoInput').click();
-    document.getElementById('pickBtn').onclick = () => document.getElementById('batchInput').click();
-
-    document.getElementById('logoInput').onchange = (e) => {
-      const f = e.target.files.item(0);
-      if (!f) return;
-      const r = new FileReader();
-      r.onload = () => { localStorage.setItem('klik_logo', r.result); loadLogo(); setTimeout(() => items.forEach(draw), 100); };
-      r.readAsDataURL(f);
-    };
-    logoPos.onchange = () => { localStorage.setItem('klik_pos', logoPos.value); items.forEach(draw); };
-    logoSize.oninput = () => { localStorage.setItem('klik_size', logoSize.value); items.forEach(draw); };
-
-    function bestShade(img) {
-      const c = document.createElement('canvas'); c.width = 60; c.height = 60;
-      const x = c.getContext('2d'); x.drawImage(img, 0, 0, 60, 60);
-      const d = x.getImageData(0, 0, 60, 60).data;
-      let sum = 0, n = 0;
-      for (let i = 0; i < d.length; i += 4) if (d.at(i + 3) > 180) { sum += 0.3 * d.at(i) + 0.59 * d.at(i + 1) + 0.11 * d.at(i + 2); n++; }
-      const lum = n ? sum / n : 128;
-      return lum > 165 ? 0 : (lum < 85 ? 1 : 2);
-    }
-
-    function trimBox(img) {
-      const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
-      const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
-      const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
-      let x0 = width, y0 = height, x1 = 0, y1 = 0;
-      for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (data.at((y * width + x) * 4 + 3) > 25) {
-        if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
-      }
-      return (x1 <= x0 || y1 <= y0) ? { x: 0, y: 0, w: width, h: height } : { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-    }
-
-    function draw(it) {
-      const S = 1200, c = it.canvas; c.width = S; c.height = S;
-      const ctx = c.getContext('2d'), sh = SHADES.at(it.shade);
-      const g = ctx.createRadialGradient(S * 0.5, S * 0.45, S * 0.08, S * 0.5, S * 0.5, S * 0.78);
-      g.addColorStop(0, sh.top); g.addColorStop(1, sh.bottom); ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
-      const b = it.box, sc = Math.min((S * 0.72) / b.w, (S * 0.72) / b.h);
-      const dw = b.w * sc, dh = b.h * sc, dx = (S - dw) / 2, dy = (S - dh) / 2 + S * 0.02;
-      ctx.save(); ctx.translate(S / 2, dy + dh - S * 0.015); ctx.scale(1, 0.22);
-      const sg = ctx.createRadialGradient(0, 0, 10, 0, 0, dw * 0.48);
-      sg.addColorStop(0, 'rgba(0,0,0,0.34)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, dw * 0.48, 0, Math.PI * 2); ctx.fill(); ctx.restore();
-      ctx.drawImage(it.img, b.x, b.y, b.w, b.h, dx, dy, dw, dh);
-      if (logoImg) {
-        const lw = S * (Number(logoSize.value) / 100), lh = lw * (logoImg.height / logoImg.width), p = S * 0.045, pos = logoPos.value;
-        ctx.drawImage(logoImg, pos.includes('r') ? S - lw - p : p, pos.includes('b') ? S - lh - p : p, lw, lh);
-      }
-    }
-
-    document.getElementById('batchInput').onchange = async (e) => {
-      const files = Array.from(e.target.files || []);
-      if (!files.length) return;
-      document.getElementById('pickBtn').disabled = true;
-      try {
-        if (!removeBgFn) {
-          showStatus('Loading AI Engine (First time takes ~20 sec)...');
-          const at = String.fromCharCode(64);
-const m = await import('https://esm.sh/' + at + 'imgly/background-removal' + at + '1.4.5?bundle');
-
-
-
-
-          removeBgFn = m.removeBackground || m.default;
-        }
-        for (let i = 0; i < files.length; i++) {
-          const f = files.at(i);
-          showStatus('Processing ' + (i + 1) + ' of ' + files.length + '...');
-          const blob = await removeBgFn(f, { model: 'medium' });
-          const img = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(blob); });
-          const card = document.createElement('div'); card.className = 'item';
-          const canvas = document.createElement('canvas');
-          const it = { name: f.name.replace(/\.[^/.]+$/, '') + '_klik.png', img, box: trimBox(img), shade: bestShade(img), canvas };
-          items.push(it); draw(it);
-          const bar = document.createElement('div'); bar.className = 'bar';
-          const dots = document.createElement('div'); dots.className = 'dots';
-          SHADES.forEach((s, idx) => { const d = document.createElement('div'); d.className = 'dot'; d.style.background = s.top; d.onclick = () => { it.shade = idx; draw(it); }; dots.appendChild(d); });
-          const btn = document.createElement('button'); btn.className = 'sec'; btn.textContent = 'Save';
-          btn.onclick = () => { const a = document.createElement('a'); a.download = it.name; a.href = canvas.toDataURL('image/png'); a.click(); };
-          bar.append(dots, btn); card.append(canvas, bar); gallery.prepend(card);
-        }
-        if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Done! ' + items.length + ' photos ready.'); }
-      } catch (err) { showStatus('Error: ' + err.message); }
-      document.getElementById('pickBtn').disabled = false;
-      e.target.value = '';
-    };
-
-    document.getElementById('downloadAllBtn').onclick = () => items.forEach((it, idx) => setTimeout(() => {
-      const a = document.createElement('a'); a.download = it.name; a.href = it.canvas.toDataURL('image/png'); a.click();
-    }, idx * 350));
-  </script>
+  <div id="retouchModal">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px;">
+      <strong>Cutout Retouch</strong>
+      <div class="row">
+        <button class="sec" id="rtCancel">Cancel</button>
+        <button id="rtDone">Apply</button>
+      </div>
+    </div>
+    <canvas id="retouchCanvas"></canvas>
+    <div class="row" style="margin-top:10px;justify-content:center;">
+      <button id="modeMagic">Magic Erase</button>
+      <button class="sec" id="modeErase">Brush Erase</button>
+      <button class="sec" id="modeRestore">Raw Restore</button>
+      <label>Size <input type="range" id="brushSize" min="8" max="90" value="28" style="width:80px;" /></label>
+    </div>
+  </div>
+  <script src="studio.js"></script>
 </body>
 </html>
+￼Enter
