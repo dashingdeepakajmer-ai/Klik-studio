@@ -1,6 +1,3 @@
-hereimport imglyModule from 'https://jsdelivr.net';
-const removeBg = imglyModule.removeBackground || imglyModule;
-
 const SHADES = [
   { name: 'Cool Slate', top: '#3c424f', bottom: '#232730' },
   { name: 'Warm Alabaster', top: '#f8f6f1', bottom: '#e6e1d6' },
@@ -10,6 +7,7 @@ const SHADES = [
 ];
 
 let logoImg = null;
+let removeBgFn = null;
 const processedItems = [];
 const statusBox = document.getElementById('statusBox');
 const gallery = document.getElementById('gallery');
@@ -17,7 +15,10 @@ const logoThumb = document.getElementById('logoThumb');
 const logoPos = document.getElementById('logoPos');
 const logoSize = document.getElementById('logoSize');
 
-function showStatus(msg) { statusBox.style.display = 'block'; statusBox.textContent = msg; }
+function showStatus(msg) {
+  statusBox.style.display = 'block';
+  statusBox.textContent = msg;
+}
 
 function loadSavedLogo() {
   const savedData = localStorage.getItem('klik_logo_data');
@@ -32,10 +33,14 @@ function loadSavedLogo() {
 loadSavedLogo();
 
 document.getElementById('logoInput').addEventListener('change', (e) => {
-  const file = e.target.files && e.target.files;
+  const file = e.target.files && e.target.files.item(0);
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = () => { localStorage.setItem('klik_logo_data', reader.result); loadSavedLogo(); setTimeout(() => processedItems.forEach(renderItem), 100); };
+  reader.onload = () => {
+    localStorage.setItem('klik_logo_data', reader.result);
+    loadSavedLogo();
+    setTimeout(() => processedItems.forEach(renderItem), 100);
+  };
   reader.readAsDataURL(file);
 });
 
@@ -48,7 +53,7 @@ function detectBestShadeIndex(cutoutImg) {
   const data = ctx.getImageData(0, 0, 100, 100).data;
   let lumSum = 0, count = 0;
   for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3] > 180) { lumSum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]; count++; }
+    if (data.at(i + 3) > 180) { lumSum += 0.299 * data.at(i) + 0.587 * data.at(i + 1) + 0.114 * data.at(i + 2); count++; }
   }
   const avgLum = count ? lumSum / count : 128;
   return avgLum > 165 ? 0 : (avgLum < 85 ? 1 : 2);
@@ -57,11 +62,12 @@ function detectBestShadeIndex(cutoutImg) {
 function getTrimmedBounds(img) {
   const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0);
-  const { data, width, height } = ctx.getImageData(0, 0, c.width, c.height);
+  const imgData = ctx.getImageData(0, 0, c.width, c.height);
+  const data = imgData.data, width = imgData.width, height = imgData.height;
   let minX = width, minY = height, maxX = 0, maxY = 0;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
-      if (data[(y * width + x) * 4 + 3] > 25) {
+      if (data.at((y * width + x) * 4 + 3) > 25) {
         if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
       }
     }
@@ -72,7 +78,7 @@ function getTrimmedBounds(img) {
 function renderItem(item) {
   const size = 1200, canvas = item.canvas;
   canvas.width = size; canvas.height = size;
-  const ctx = canvas.getContext('2d'), shade = SHADES[item.shadeIndex];
+  const ctx = canvas.getContext('2d'), shade = SHADES.at(item.shadeIndex);
   const grad = ctx.createRadialGradient(size * 0.5, size * 0.45, size * 0.08, size * 0.5, size * 0.5, size * 0.78);
   grad.addColorStop(0, shade.top); grad.addColorStop(1, shade.bottom);
   ctx.fillStyle = grad; ctx.fillRect(0, 0, size, size);
@@ -96,16 +102,24 @@ function renderItem(item) {
 document.getElementById('batchInput').addEventListener('change', async (e) => {
   const files = Array.from(e.target.files || []);
   if (!files.length) return;
-  const pickBtn = document.getElementById('pickBtn'); pickBtn.disabled = true;
+  const pickBtn = document.getElementById('pickBtn');
+  pickBtn.disabled = true;
 
-  for (let i = 0; i < files.length; i++) {
-    showStatus('Processing ' + (i + 1) + ' of ' + files.length + ' (First photo loads AI model once)...');
-    try {
-      const blob = await removeBg(files[i], { model: 'medium', output: { format: 'image/png', quality: 1 } });
+  try {
+    if (!removeBgFn) {
+      showStatus('Loading Offline AI Engine (First time takes ~20 sec)...');
+      const mod = await import('https://esm.sh');
+      removeBgFn = mod.removeBackground || mod.default;
+    }
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files.at(i);
+      showStatus('Processing photo ' + (i + 1) + ' of ' + files.length + '...');
+      const blob = await removeBgFn(file, { model: 'medium', output: { format: 'image/png', quality: 1 } });
       const cutoutImg = await new Promise((res, rej) => { const img = new Image(); img.onload = () => res(img); img.onerror = rej; img.src = URL.createObjectURL(blob); });
       const card = document.createElement('div'); card.className = 'item';
       const canvas = document.createElement('canvas');
-      const item = { name: files[i].name.replace(/\.[^/.]+$/, '') + '_klik.png', cutoutImg, bounds: getTrimmedBounds(cutoutImg), shadeIndex: detectBestShadeIndex(cutoutImg), canvas };
+      const item = { name: file.name.replace(/\.[^/.]+$/, '') + '_klik.png', cutoutImg, bounds: getTrimmedBounds(cutoutImg), shadeIndex: detectBestShadeIndex(cutoutImg), canvas };
       processedItems.push(item); renderItem(item);
 
       const bar = document.createElement('div'); bar.className = 'swatches';
@@ -114,16 +128,25 @@ document.getElementById('batchInput').addEventListener('change', async (e) => {
       const dlBtn = document.createElement('button'); dlBtn.className = 'sec'; dlBtn.textContent = 'Save';
       dlBtn.onclick = () => { const a = document.createElement('a'); a.download = item.name; a.href = canvas.toDataURL('image/png'); a.click(); };
       bar.appendChild(dots); bar.appendChild(dlBtn); card.appendChild(canvas); card.appendChild(bar); gallery.prepend(card);
-    } catch (err) { showStatus('Error on photo ' + (i + 1) + ': ' + err.message); }
+    }
+
+    if (processedItems.length) {
+      document.getElementById('actionsBar').style.display = 'block';
+      showStatus('Done! ' + processedItems.length + ' product photos ready.');
+    }
+  } catch (err) {
+    showStatus('Error: ' + (err && err.message ? err.message : String(err)));
   }
+
   pickBtn.disabled = false;
-  if (processedItems.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Done! ' + processedItems.length + ' product photos ready.'); }
   e.target.value = '';
 });
 
 document.getElementById('downloadAllBtn').addEventListener('click', async () => {
   for (let i = 0; i < processedItems.length; i++) {
-    const a = document.createElement('a'); a.download = processedItems[i].name; a.href = processedItems[i].canvas.toDataURL('image/png'); a.click();
+    const it = processedItems.at(i);
+    const a = document.createElement('a'); a.download = it.name; a.href = it.canvas.toDataURL('image/png'); a.click();
     await new Promise(r => setTimeout(r, 350));
   }
 });
+￼Enter
