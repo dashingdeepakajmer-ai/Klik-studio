@@ -349,7 +349,7 @@ async function processFileToLayer(file, nx, ny, scale) {
   if (!removeBgFn) {
     showStatus('Loading Offline AI Engine...');
     const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-    const m = await import('https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5');
+    const m = await import('https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5?bundle');
     removeBgFn = m.removeBackground || m.default;
   }
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
