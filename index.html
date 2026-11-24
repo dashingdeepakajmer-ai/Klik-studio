@@ -134,7 +134,10 @@
       try {
         if (!removeBgFn) {
           showStatus('Loading AI Engine (First time takes ~20 sec)...');
-          const m = await import('https://esm.sh');
+          const at = String.fromCharCode(64);
+const m = await import('https://jsdelivr.net' + at + 'imgly/background-removal' + at + '1.4.5/+esm');
+
+
           removeBgFn = m.removeBackground || m.default;
         }
         for (let i = 0; i < files.length; i++) {
