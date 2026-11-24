@@ -255,4 +255,177 @@ function attachDrag(it) {
   it.canvas.addEventListener('touchmove', onMove, { passive: false });
   it.canvas.addEventListener('touchend', onUp);
 }
+let rtTarget = null, rtMode = 'magic', rtDrawing = false;
+const rtModal = document.getElementById('retouchModal'), rtCanvas = document.getElementById('retouchCanvas');
+const brushSize = document.getElementById('brushSize');
+
+function setRtMode(m) {
+  rtMode = m;
+  document.getElementById('modeMagic').className = m === 'magic' ? '' : 'sec';
+  document.getElementById('modeErase').className = m === 'erase' ? '' : 'sec';
+  document.getElementById('modeRestore').className = m === 'restore' ? '' : 'sec';
+}
+document.getElementById('modeMagic').onclick = () => setRtMode('magic');
+document.getElementById('modeErase').onclick = () => setRtMode('erase');
+document.getElementById('modeRestore').onclick = () => setRtMode('restore');
+
+function openRetouch(it) {
+  const layer = it.layers.at(it.activeIdx);
+  rtTarget = { it, layer };
+  rtCanvas.width = layer.cutoutCanvas.width;
+  rtCanvas.height = layer.cutoutCanvas.height;
+  rtCanvas.getContext('2d').drawImage(layer.cutoutCanvas, 0, 0);
+  setRtMode('magic');
+  rtModal.style.display = 'flex';
+}
+
+function magicFloodErase(sx, sy) {
+  const w = rtCanvas.width, h = rtCanvas.height, ctx = rtCanvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data;
+  const x0 = Math.max(0, Math.min(w - 1, Math.round(sx)));
+  const y0 = Math.max(0, Math.min(h - 1, Math.round(sy)));
+  const startIdx = y0 * w + x0;
+  if (d.at(startIdx * 4 + 3) < 30) return;
+  const r0 = d.at(startIdx * 4), g0 = d.at(startIdx * 4 + 1), b0 = d.at(startIdx * 4 + 2);
+  const visited = new Uint8Array(w * h);
+  const stack = new Array(startIdx);
+  visited.fill(1, startIdx, startIdx + 1);
+  while (stack.length) {
+    const idx = stack.pop();
+    d.fill(0, idx * 4 + 3, idx * 4 + 4);
+    const x = idx % w, y = (idx - x) / w;
+    const nb = new Array(x > 0 ? idx - 1 : -1, x < w - 1 ? idx + 1 : -1, y > 0 ? idx - w : -1, y < h - 1 ? idx + w : -1);
+    for (let k = 0; k < 4; k++) {
+      const ni = nb.at(k);
+      if (ni >= 0 && !visited.at(ni) && d.at(ni * 4 + 3) >= 30) {
+        const diff = Math.abs(d.at(ni * 4) - r0) + Math.abs(d.at(ni * 4 + 1) - g0) + Math.abs(d.at(ni * 4 + 2) - b0);
+        if (diff < 85) { visited.fill(1, ni, ni + 1); stack.push(ni); }
+      }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function applyBrush(ev) {
+  const rect = rtCanvas.getBoundingClientRect();
+  const cx = ev.touches ? ev.touches.item(0).clientX : ev.clientX;
+  const cy = ev.touches ? ev.touches.item(0).clientY : ev.clientY;
+  const scaleX = rtCanvas.width / rect.width, scaleY = rtCanvas.height / rect.height;
+  const x = (cx - rect.left) * scaleX, y = (cy - rect.top) * scaleY;
+  const r = Number(brushSize.value) * Math.max(scaleX, scaleY) * 0.5;
+  const ctx = rtCanvas.getContext('2d');
+
+  if (rtMode === 'magic') {
+    magicFloodErase(x, y);
+  } else if (rtMode === 'erase') {
+    ctx.save(); ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  } else if (rtMode === 'restore' && rtTarget) {
+    ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip();
+    ctx.drawImage(rtTarget.layer.rawImg, 0, 0, rtCanvas.width, rtCanvas.height); ctx.restore();
+  }
+}
+
+rtCanvas.addEventListener('mousedown', (e) => { rtDrawing = true; applyBrush(e); });
+rtCanvas.addEventListener('mousemove', (e) => { if (rtDrawing && rtMode !== 'magic') applyBrush(e); });
+window.addEventListener('mouseup', () => { rtDrawing = false; });
+rtCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); rtDrawing = true; applyBrush(e); }, { passive: false });
+rtCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (rtDrawing && rtMode !== 'magic') applyBrush(e); }, { passive: false });
+rtCanvas.addEventListener('touchend', () => { rtDrawing = false; });
+
+document.getElementById('rtCancel').onclick = () => { rtModal.style.display = 'none'; rtTarget = null; };
+document.getElementById('rtDone').onclick = () => {
+  if (rtTarget) {
+    const l = rtTarget.layer;
+    l.cutoutCanvas.getContext('2d').clearRect(0, 0, l.cutoutCanvas.width, l.cutoutCanvas.height);
+    l.cutoutCanvas.getContext('2d').drawImage(rtCanvas, 0, 0);
+    l.box = trimBox(l.cutoutCanvas);
+    draw(rtTarget.it);
+  }
+  rtModal.style.display = 'none'; rtTarget = null;
+};
+
+async function processFileToLayer(file, nx, ny, scale) {
+  if (!removeBgFn) {
+    showStatus('Loading Offline AI Engine...');
+    const at = String.fromCharCode(64), sl = String.fromCharCode(47);
+    const m = await import('https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5?bundle');
+    removeBgFn = m.removeBackground || m.default;
+  }
+  const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
+  const blob = await removeBgFn(file, { model: 'medium' });
+  const cutImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(blob); });
+  const cutoutCanvas = document.createElement('canvas');
+  cutoutCanvas.width = cutImg.width; cutoutCanvas.height = cutImg.height;
+  cutoutCanvas.getContext('2d').drawImage(cutImg, 0, 0);
+  autoCleanCanvas(cutoutCanvas);
+  return { rawImg, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale };
+}
+
+document.getElementById('batchInput').onchange = async (e) => {
+  const files = Array.from(e.target.files || []); if (!files.length) return;
+  document.getElementById('pickBtn').disabled = true;
+  await keepAlive(true);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const f = files.at(i); showStatus('Processing ' + (i + 1) + ' of ' + files.length + ' (Background Active)...');
+      const layer = await processFileToLayer(f, 0.5, 0.52, 72);
+      const card = document.createElement('div'); card.className = 'item';
+      const canvas = document.createElement('canvas');
+      const it = { name: f.name.replace(/\.[^/.]+$/, '') + '_klik.png', layers: new Array(layer), activeIdx: 0, scenes: buildMatchedScenes(layer.cutoutCanvas), sceneIdx: 0, canvas };
+      items.push(it);
+
+      const bar = document.createElement('div'); bar.className = 'bar';
+      const dots = document.createElement('div'); dots.className = 'dots';
+      it.scenes.forEach((s, idx) => { const d = document.createElement('div'); d.className = 'dot'; d.style.background = s.dot; d.onclick = () => { it.sceneIdx = idx; draw(it); }; dots.appendChild(d); });
+
+      const slider = document.createElement('input'); slider.type = 'range'; slider.min = '30'; slider.max = '95'; slider.value = '72'; slider.style.width = '70px';
+      slider.oninput = () => { it.layers.at(it.activeIdx).scale = Number(slider.value); draw(it); };
+      it.slider = slider;
+
+      const rtBtn = document.createElement('button'); rtBtn.className = 'sec'; rtBtn.textContent = 'Retouch';
+      rtBtn.onclick = () => openRetouch(it);
+
+      const addVarBtn = document.createElement('button'); addVarBtn.className = 'sec'; addVarBtn.textContent = '+ Color';
+      addVarBtn.onclick = () => { activeCardForVariant = it; document.getElementById('variantInput').click(); };
+
+      const btn = document.createElement('button'); btn.className = 'sec'; btn.textContent = 'Save';
+      btn.onclick = () => { const a = document.createElement('a'); a.download = it.name; a.href = canvas.toDataURL('image/png'); a.click(); };
+
+      draw(it); attachDrag(it);
+      bar.append(dots, slider, rtBtn, addVarBtn, btn);
+      card.append(canvas, bar); gallery.prepend(card);
+    }
+    if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Done! ' + items.length + ' photos ready.'); }
+  } catch (err) { showStatus('Error: ' + err.message); }
+  await keepAlive(false);
+  document.getElementById('pickBtn').disabled = false; e.target.value = '';
+};
+
+document.getElementById('variantInput').onchange = async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length || !activeCardForVariant) return;
+  const it = activeCardForVariant;
+  await keepAlive(true);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      showStatus('Adding color variant ' + (i + 1) + '...');
+      const count = it.layers.length;
+      const nx = Math.min(0.8, 0.35 + count * 0.18), ny = Math.min(0.75, 0.48 + count * 0.06);
+      if (count === 1) { it.layers.at(0).nx = 0.34; it.layers.at(0).scale = 54; }
+      const newLayer = await processFileToLayer(files.at(i), nx, ny, 54);
+      it.layers.push(newLayer);
+      it.activeIdx = it.layers.length - 1;
+      it.slider.value = '54';
+      draw(it);
+    }
+    showStatus('Variant added! Drag each shoe to arrange.');
+  } catch (err) { showStatus('Error: ' + err.message); }
+  await keepAlive(false);
+  e.target.value = '';
+};
+
+document.getElementById('downloadAllBtn').onclick = () => items.forEach((it, idx) => setTimeout(() => {
+  const a = document.createElement('a'); a.download = it.name; a.href = it.canvas.toDataURL('image/png'); a.click();
+}, idx * 350));
 
