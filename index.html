@@ -10,6 +10,8 @@
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
     button { background: #7557ff; color: #fff; border: none; border-radius: 12px; padding: 11px 14px; font-size: 14px; font-weight: 600; cursor: pointer; }
     button.sec { background: #272a36; font-size: 12px; padding: 8px 11px; }
+    .chip { background: #272a36; color: #9ca3af; border: 1px solid #383c4c; border-radius: 20px; padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
+    .chip.on { background: #2e2459; color: #c4b5fd; border-color: #7557ff; }
     .full { width: 100%; padding: 14px; font-size: 16px; }
     select { background: #272a36; color: #fff; border: 1px solid #383c4c; border-radius: 10px; padding: 8px; font-size: 13px; }
     label { font-size: 12px; color: #9ca3af; display: inline-flex; align-items: center; gap: 5px; }
@@ -26,10 +28,10 @@
 </head>
 <body>
   <h2 style="margin:0 0 2px;">KLIK Product Studio</h2>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">Drag & Move • Magic Auto/Manual Retouch • Smart Color Scenes</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">Toggle Effects • Drag & Move • Magic Retouch • Smart Scenes</div>
   <div class="card">
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">1. Brand Logo & Canvas Setup</div>
-    <div class="row" style="margin-bottom:8px;">
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">1. Brand Logo & Size</div>
+    <div class="row" style="margin-bottom:10px;">
       <img id="logoThumb" style="width:36px;height:36px;object-fit:contain;background:#272a36;border-radius:8px;" />
       <button class="sec" id="logoBtn">Upload Logo</button>
       <input type="file" id="logoInput" accept="image/*" hidden />
@@ -40,16 +42,20 @@
         <option value="bl">Logo: Bottom Left</option>
       </select>
       <label>Logo <input type="range" id="logoSize" min="8" max="28" value="14" style="width:65px;" /></label>
-    </div>
-    <div class="row">
       <select id="ratioSel">
         <option value="1:1">1:1 Square</option>
         <option value="4:5">4:5 Portrait</option>
         <option value="9:16">9:16 Story</option>
         <option value="16:9">16:9 Banner</option>
       </select>
-      <label><input type="checkbox" id="shadow3d" checked /> 3D Border Shadow</label>
-      <label><input type="checkbox" id="autoClean" checked /> Auto Clean</label>
+    </div>
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:6px;">2. Effect Tabs (Tap to Turn ON/OFF):</div>
+    <div class="row">
+      <button type="button" class="chip on" id="tabFloor">Floor Shadow: ON</button>
+      <button type="button" class="chip on" id="tab3D">3D Border: ON</button>
+      <button type="button" class="chip on" id="tabLight">Lighting: ON</button>
+      <button type="button" class="chip on" id="tabArch">Scene Design: ON</button>
+      <button type="button" class="chip on" id="tabClean">Auto Clean: ON</button>
     </div>
   </div>
   <div class="card">
