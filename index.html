@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#111218" />
+  <title>KLIK Product Studio</title>
+  <link rel="manifest" href="manifest.json" />
+  <style>
+    :root { --bg: #111218; --card: #1a1c24; --accent: #7557ff; --text: #f3f4f6; --muted: #9ca3af; }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); padding: 16px 16px 80px; }
+    h1 { font-size: 20px; margin: 0 0 4px; display: flex; align-items: center; justify-content: space-between; }
+    .sub { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+    .card { background: var(--card); border-radius: 16px; padding: 14px; margin-bottom: 14px; border: 1px solid #2a2d3a; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    button { background: var(--accent); color: #fff; border: none; border-radius: 12px; padding: 12px 16px; font-size: 15px; font-weight: 600; cursor: pointer; }
+    button.sec { background: #272a36; color: #e5e7eb; font-size: 13px; padding: 10px 12px; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .full { width: 100%; padding: 15px; font-size: 16px; }
+    select, input[type="range"] { background: #272a36; color: #fff; border: 1px solid #383c4c; border-radius: 10px; padding: 8px 10px; font-size: 13px; }
+    #statusBox { display: none; background: #1f2230; border-left: 4px solid var(--accent); padding: 12px; border-radius: 10px; margin-bottom: 14px; font-size: 14px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+    .item { background: var(--card); border-radius: 16px; padding: 12px; border: 1px solid #2a2d3a; }
+    .item canvas { width: 100%; height: auto; border-radius: 12px; display: block; background: #222; }
+    .swatches { display: flex; gap: 8px; margin-top: 10px; align-items: center; justify-content: space-between; }
+    .dots { display: flex; gap: 6px; }
+    .dot { width: 24px; height: 24px; border-radius: 50%; border: 2px solid #fff3; cursor: pointer; }
+    .logo-preview { width: 38px; height: 38px; object-fit: contain; background: #272a36; border-radius: 8px; padding: 4px; }
+  </style>
+</head>
+<body>
+  <h1><span>KLIK Product Studio</span><span style="font-size:11px;background:#272a36;padding:4px 8px;border-radius:8px;color:#a78bfa;">Offline AI</span></h1>
+  <div class="sub">Auto Cutout • Smart Contrast BG • Natural Shadow • Fixed Logo</div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px;">1. Fixed Brand Logo (One-Time Setup)</div>
+    <div class="row">
+      <img id="logoThumb" class="logo-preview" alt="Logo" />
+      <button class="sec" onclick="document.getElementById('logoInput').click()">Upload PNG Logo</button>
+      <input type="file" id="logoInput" accept="image/png,image/webp" hidden />
+      <select id="logoPos">
+        <option value="tr">Top Right</option>
+        <option value="tl">Top Left</option>
+        <option value="br">Bottom Right</option>
+        <option value="bl">Bottom Left</option>
+      </select>
+      <label style="font-size:12px;color:var(--muted);">Size: <input type="range" id="logoSize" min="8" max="28" value="15" style="width:80px;vertical-align:middle;" /></label>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:13px;font-weight:600;margin-bottom:10px;">2. Batch Process Raw Product Photos</div>
+    <button class="full" id="pickBtn" onclick="document.getElementById('batchInput').click()">+ Select Product Photos (Batch)</button>
+    <input type="file" id="batchInput" accept="image/*" multiple hidden />
+  </div>
+  <div id="statusBox"></div>
+  <div id="actionsBar" style="display:none;margin-bottom:14px;"><button class="full" style="background:#10b981;" id="downloadAllBtn">Download All HD Photos</button></div>
+  <div class="grid" id="gallery"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
+￼Enter
