@@ -1,0 +1,10 @@
+{
+  "name": "KLIK Product Studio",
+  "short_name": "KLIK Studio",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#111218",
+  "theme_color": "#111218",
+  "icons": [{ "src": "https://flaticon.com", "sizes": "512x512", "type": "image/png" }]
+}
+￼Enter
