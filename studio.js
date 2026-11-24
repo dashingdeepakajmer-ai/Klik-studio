@@ -135,4 +135,124 @@ function autoCleanCanvas(c) {
   for (let i = 0; i < w * h; i++) if (!keep.at(i)) d.fill(0, i * 4 + 3, i * 4 + 4);
   ctx.putImageData(imgData, 0, 0);
 }
+function trimBox(c) {
+  const ctx = c.getContext('2d'), width = c.width, height = c.height;
+  const data = ctx.getImageData(0, 0, width, height).data;
+  let x0 = width, y0 = height, x1 = 0, y1 = 0;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (data.at((y * width + x) * 4 + 3) > 25) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  return (x1 <= x0 || y1 <= y0) ? { x: 0, y: 0, w: width, h: height } : { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+function drawBackground(ctx, W, H, sc) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, sc.top); g.addColorStop(1, sc.bot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  if (FX.light) {
+    const spot = ctx.createRadialGradient(W * 0.35, H * 0.2, W * 0.05, W * 0.5, H * 0.45, Math.max(W, H) * 0.75);
+    spot.addColorStop(0, sc.light); spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot; ctx.fillRect(0, 0, W, H);
+  }
+
+  if (!FX.arch) return;
+  if (sc.type === 'arch') {
+    ctx.fillStyle = 'rgba(255,255,255,0.24)';
+    ctx.beginPath(); ctx.arc(W * 0.5, H * 0.42, W * 0.34, Math.PI, 0);
+    ctx.lineTo(W * 0.84, H * 0.78); ctx.lineTo(W * 0.16, H * 0.78); ctx.closePath(); ctx.fill();
+  }
+  if (sc.type === 'podium' || sc.type === 'arch') {
+    const floorY = H * 0.74;
+    ctx.fillStyle = sc.pod; ctx.fillRect(0, floorY, W, H - floorY);
+    ctx.fillStyle = 'rgba(255,255,255,0.16)'; ctx.fillRect(0, floorY, W, 4);
+  }
+  if (sc.type === 'outdoor') {
+    const floorY = H * 0.72;
+    ctx.fillStyle = sc.pod; ctx.fillRect(0, floorY, W, H - floorY);
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    for (let i = 0; i < 6; i++) {
+      ctx.beginPath(); ctx.ellipse(W * (0.15 + i * 0.14), H * 0.18, W * 0.12, H * 0.03, 0.5, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+function getLayerRect(layer, W, H) {
+  const b = layer.box, pct = layer.scale / 100;
+  const sc = Math.min((W * pct) / b.w, (H * pct) / b.h);
+  const dw = b.w * sc, dh = b.h * sc;
+  const dx = (W * layer.nx) - dw / 2, dy = (H * layer.ny) - dh / 2;
+  return { dx, dy, dw, dh };
+}
+
+function draw(it) {
+  const dims = RATIOS[ratioSel.value] || new Array(1200, 1200);
+  const W = dims.at(0), H = dims.at(1), c = it.canvas;
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d'), sc = it.scenes.at(it.sceneIdx);
+  drawBackground(ctx, W, H, sc);
+
+  it.layers.forEach((layer) => {
+    const r = getLayerRect(layer, W, H);
+    if (FX.floor) {
+      ctx.save(); ctx.translate(r.dx + r.dw / 2, r.dy + r.dh - H * 0.01); ctx.scale(1, 0.2);
+      const sg = ctx.createRadialGradient(0, 0, 8, 0, 0, r.dw * 0.48);
+      sg.addColorStop(0, 'rgba(0,0,0,0.38)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, r.dw * 0.48, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    ctx.save();
+    if (FX.border3d) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.44)';
+      ctx.shadowBlur = Math.round(Math.min(W, H) * 0.024);
+      ctx.shadowOffsetX = Math.round(W * 0.014);
+      ctx.shadowOffsetY = Math.round(H * 0.018);
+    }
+    ctx.drawImage(layer.cutoutCanvas, layer.box.x, layer.box.y, layer.box.w, layer.box.h, r.dx, r.dy, r.dw, r.dh);
+    ctx.restore();
+  });
+
+  if (logoImg) {
+    const minSide = Math.min(W, H), lw = minSide * (Number(logoSize.value) / 100);
+    const lh = lw * (logoImg.height / logoImg.width), p = minSide * 0.045, pos = logoPos.value;
+    ctx.drawImage(logoImg, pos.includes('r') ? W - lw - p : p, pos.includes('b') ? H - lh - p : p, lw, lh);
+  }
+}
+
+function attachDrag(it) {
+  let dragIdx = -1, startX = 0, startY = 0, origNx = 0.5, origNy = 0.5;
+  const getPos = (ev) => {
+    const rect = it.canvas.getBoundingClientRect();
+    const clientX = ev.touches ? ev.touches.item(0).clientX : ev.clientX;
+    const clientY = ev.touches ? ev.touches.item(0).clientY : ev.clientY;
+    return { x: ((clientX - rect.left) / rect.width) * it.canvas.width, y: ((clientY - rect.top) / rect.height) * it.canvas.height };
+  };
+  const onDown = (ev) => {
+    const p = getPos(ev);
+    for (let i = it.layers.length - 1; i >= 0; i--) {
+      const r = getLayerRect(it.layers.at(i), it.canvas.width, it.canvas.height);
+      if (p.x >= r.dx && p.x <= r.dx + r.dw && p.y >= r.dy && p.y <= r.dy + r.dh) {
+        dragIdx = i; it.activeIdx = i; startX = p.x; startY = p.y;
+        origNx = it.layers.at(i).nx; origNy = it.layers.at(i).ny;
+        it.slider.value = String(it.layers.at(i).scale);
+        break;
+      }
+    }
+  };
+  const onMove = (ev) => {
+    if (dragIdx < 0) return;
+    ev.preventDefault();
+    const p = getPos(ev), l = it.layers.at(dragIdx);
+    l.nx = Math.max(0.08, Math.min(0.92, origNx + (p.x - startX) / it.canvas.width));
+    l.ny = Math.max(0.08, Math.min(0.92, origNy + (p.y - startY) / it.canvas.height));
+    draw(it);
+  };
+  const onUp = () => { dragIdx = -1; };
+  it.canvas.addEventListener('mousedown', onDown);
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('mouseup', onUp);
+  it.canvas.addEventListener('touchstart', onDown, { passive: false });
+  it.canvas.addEventListener('touchmove', onMove, { passive: false });
+  it.canvas.addEventListener('touchend', onUp);
+}
 
