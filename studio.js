@@ -349,11 +349,16 @@ async function processFileToLayer(file, nx, ny, scale) {
   if (!removeBgFn) {
     showStatus('Loading Offline AI Engine...');
     const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-    const m = await import('https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5?bundle');
+    const m = await import('https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5');
     removeBgFn = m.removeBackground || m.default;
   }
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  const blob = await removeBgFn(file, { model: 'medium' });
+  const maxDim = 1200, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
+  const prep = document.createElement('canvas');
+  prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
+  prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
+  const fastBlob = await new Promise((res) => prep.toBlob(res, 'image/jpeg', 0.92));
+  const blob = await removeBgFn(fastBlob, { model: 'small' });
   const cutImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(blob); });
   const cutoutCanvas = document.createElement('canvas');
   cutoutCanvas.width = cutImg.width; cutoutCanvas.height = cutImg.height;
@@ -361,6 +366,7 @@ async function processFileToLayer(file, nx, ny, scale) {
   autoCleanCanvas(cutoutCanvas);
   return { rawImg, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale };
 }
+
 
 document.getElementById('batchInput').onchange = async (e) => {
   const files = Array.from(e.target.files || []); if (!files.length) return;
