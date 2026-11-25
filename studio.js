@@ -347,18 +347,42 @@ document.getElementById('rtDone').onclick = () => {
 
 async function processFileToLayer(file, nx, ny, scale) {
   if (!removeBgFn) {
-    showStatus('Loading Offline AI Engine...');
+    showStatus('Step 1/3: Connecting AI Engine...');
     const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-    const m = await import('https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5?bundle');
-    removeBgFn = m.removeBackground || m.default;
+    const urls = new Array(
+      'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5' + sl + 'dist' + sl + 'browser.mjs',
+      'https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5?bundle'
+    );
+    for (let u = 0; u < urls.length; u++) {
+      try {
+        const mod = await Promise.race(new Array(
+          import(urls.at(u)),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), 12000))
+        ));
+        removeBgFn = mod.removeBackground || mod.default;
+        if (removeBgFn) break;
+      } catch (e) {}
+    }
+    if (!removeBgFn) throw new Error('Network slow - Please retry once');
   }
+  showStatus('Step 2/3: Preparing Photo...');
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
   const maxDim = 1200, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
   const prep = document.createElement('canvas');
   prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
   prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
-  const fastBlob = await new Promise((res) => prep.toBlob(res, 'image/jpeg', 0.92));
-  const blob = await removeBgFn(fastBlob, { model: 'small' });
+  const fastBlob = await new Promise((res) => prep.toBlob(res, 'image/jpeg', 0.94));
+
+  const at = String.fromCharCode(64), sl = String.fromCharCode(47);
+  const publicPath = 'https:' + sl + sl + 'staticimgly.com' + sl + at + 'imgly' + sl + 'background-removal-data' + at + '1.4.5' + sl + 'dist' + sl;
+  const blob = await removeBgFn(fastBlob, {
+    model: 'medium',
+    publicPath: publicPath,
+    progress: (key, current, total) => {
+      const pct = total ? Math.round((current / total) * 100) : 0;
+      showStatus('Step 3/3: AI Cutting (' + pct + '%)...');
+    }
+  });
   const cutImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(blob); });
   const cutoutCanvas = document.createElement('canvas');
   cutoutCanvas.width = cutImg.width; cutoutCanvas.height = cutImg.height;
@@ -366,6 +390,7 @@ async function processFileToLayer(file, nx, ny, scale) {
   autoCleanCanvas(cutoutCanvas);
   return { rawImg, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale };
 }
+
 
 
 document.getElementById('batchInput').onchange = async (e) => {
