@@ -367,7 +367,7 @@ async function processFileToLayer(file, nx, ny, scale) {
   }
   showStatus('Step 2/3: Preparing Photo...');
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  const maxDim = 1200, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
+  const maxDim = 900, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
   const prep = document.createElement('canvas');
   prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
   prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
@@ -378,7 +378,7 @@ async function processFileToLayer(file, nx, ny, scale) {
 
   const blob = await removeBgFn(fastBlob, {
     model: 'medium',
-    
+    device: 'cpu',
     progress: (key, current, total) => {
       const pct = total ? Math.round((current / total) * 100) : 0;
       showStatus('Step 3/3: AI Cutting (' + pct + '%)...');
