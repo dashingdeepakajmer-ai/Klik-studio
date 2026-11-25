@@ -238,4 +238,68 @@ function exportCleanPng(it) {
   draw(it, false);
   const a = document.createElement('a'); a.download = it.name; a.href = url; a.click();
 }
+function attachGestures(it) {
+  let dragIdx = -1, startX = 0, startY = 0, origNx = 0.5, origNy = 0.5;
+  let pinchDist = 0, pinchAngle = 0, origScale = 70, origTilt = 0;
+
+  const getPt = (t) => {
+    const rect = it.canvas.getBoundingClientRect();
+    return { x: ((t.clientX - rect.left) / rect.width) * it.canvas.width, y: ((t.clientY - rect.top) / rect.height) * it.canvas.height };
+  };
+
+  it.canvas.addEventListener('touchstart', (ev) => {
+    if (ev.touches.length === 2) {
+      ev.preventDefault();
+      dragIdx = -1;
+      pushUndo(it);
+      const p1 = getPt(ev.touches.item(0)), p2 = getPt(ev.touches.item(1));
+      pinchDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      pinchAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const l = it.layers.at(it.activeIdx);
+      origScale = l.scale; origTilt = l.tilt || 0; it.selected = true; draw(it);
+      return;
+    }
+    const p = getPt(ev.touches.item(0));
+    let hit = false;
+    for (let i = it.layers.length - 1; i >= 0; i--) {
+      const r = getLayerRect(it.layers.at(i), it.canvas.width, it.canvas.height);
+      const pad = 60;
+      if (p.x >= r.dx - pad && p.x <= r.dx + r.dw + pad && p.y >= r.dy - pad && p.y <= r.dy + r.dh + pad) {
+        pushUndo(it);
+        dragIdx = i; it.activeIdx = i; it.selected = true; hit = true;
+        startX = p.x; startY = p.y;
+        origNx = it.layers.at(i).nx; origNy = it.layers.at(i).ny;
+        it.slider.value = String(it.layers.at(i).scale);
+        it.tiltSlider.value = String(it.layers.at(i).tilt || 0);
+        break;
+      }
+    }
+    if (!hit) it.selected = false;
+    draw(it);
+  }, { passive: false });
+
+  it.canvas.addEventListener('touchmove', (ev) => {
+    if (ev.touches.length === 2 && pinchDist > 0) {
+      ev.preventDefault();
+      const p1 = getPt(ev.touches.item(0)), p2 = getPt(ev.touches.item(1));
+      const newDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+      const newAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+      const l = it.layers.at(it.activeIdx);
+      l.scale = Math.max(25, Math.min(98, Math.round(origScale * (newDist / pinchDist))));
+      l.tilt = Math.max(-45, Math.min(45, Math.round(origTilt + ((newAngle - pinchAngle) * 180) / Math.PI)));
+      it.slider.value = String(l.scale);
+      it.tiltSlider.value = String(l.tilt);
+      draw(it);
+      return;
+    }
+    if (dragIdx < 0) return;
+    ev.preventDefault();
+    const p = getPt(ev.touches.item(0)), l = it.layers.at(dragIdx);
+    l.nx = Math.max(0.08, Math.min(0.92, origNx + (p.x - startX) / it.canvas.width));
+    l.ny = Math.max(0.08, Math.min(0.92, origNy + (p.y - startY) / it.canvas.height));
+    draw(it);
+  }, { passive: false });
+
+  it.canvas.addEventListener('touchend', () => { dragIdx = -1; pinchDist = 0; });
+}
 
