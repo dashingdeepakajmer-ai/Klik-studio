@@ -95,44 +95,57 @@ function rgbToHsl(r, g, b) {
   return new Array(Math.round(h), Math.round(s * 100), Math.round(l * 100));
 }
 
-function buildMatchedScenes(img) {
+function detectSoleAndScenes(img) {
   const c = document.createElement('canvas'); c.width = 60; c.height = 60;
   const x = c.getContext('2d'); x.drawImage(img, 0, 0, 60, 60);
   const d = x.getImageData(0, 0, 60, 60).data;
-  let rSum = 0, gSum = 0, bSum = 0, n = 0;
-  for (let i = 0; i < d.length; i += 4) {
-    if (d.at(i + 3) > 180) { rSum += d.at(i); gSum += d.at(i + 1); bSum += d.at(i + 2); n++; }
+  let rSum = 0, gSum = 0, bSum = 0, n = 0, maxY = 0;
+  for (let y = 0; y < 60; y++) for (let col = 0; col < 60; col++) {
+    const i = (y * 60 + col) * 4;
+    if (d.at(i + 3) > 180) { rSum += d.at(i); gSum += d.at(i + 1); bSum += d.at(i + 2); n++; if (y > maxY) maxY = y; }
   }
+  let sR = 0, sG = 0, sB = 0, sN = 0;
+  const soleStart = Math.max(0, maxY - 11);
+  for (let y = soleStart; y <= maxY; y++) for (let col = 0; col < 60; col++) {
+    const i = (y * 60 + col) * 4;
+    if (d.at(i + 3) > 180) { sR += d.at(i); sG += d.at(i + 1); sB += d.at(i + 2); sN++; }
+  }
+  const soleLum = rgbToHsl(sN ? sR / sN : 128, sN ? sG / sN : 128, sN ? sB / sN : 128).at(2);
+  const isBlackSole = soleLum < 30;
+
   const hsl = rgbToHsl(n ? rSum / n : 128, n ? gSum / n : 128, n ? bSum / n : 128);
   const hue = hsl.at(0), sat = hsl.at(1), lum = hsl.at(2);
-  const comp = (hue + 180) % 360, ana = (hue + 35) % 360;
+  const comp = (hue + 180) % 360, ana = (hue + 40) % 360, tri = (hue + 140) % 360;
 
-  if (lum > 68) {
-    return new Array(
-      { type: 'pedestal', ny: 0.52, top: '#3c4354', bot: '#1b1f28', pod: '#2c3240', rim: '#525b70', light: 'rgba(255,255,255,0.22)' },
-      { type: 'arch', ny: 0.50, top: '#4a5d58', bot: '#232e2b', pod: '#34423e', rim: '#627872', light: 'rgba(255,255,255,0.24)' },
-      { type: 'outdoor', ny: 0.50, top: '#786c5c', bot: '#3e372e', pod: '#574e42', rim: '#8c7e6c', light: 'rgba(255,242,215,0.28)' },
-      { type: 'marble', ny: 0.51, top: '#4b4659', bot: '#24212c', pod: '#363242', rim: '#665f78', light: 'rgba(255,255,255,0.22)' },
-      { type: 'studio', ny: 0.52, top: '#d8dde6', bot: '#b4bcc9', pod: '#9aa4b5', rim: '#eef2f7', light: 'rgba(255,255,255,0.55)' }
+  let scenes;
+  if (lum > 64) {
+    scenes = new Array(
+      { type: 'bokeh', ny: 0.48, top: '#464d5e', bot: '#181c24', pod: '#252a36', rim: '#6c7791', glow: 'rgba(255,255,255,0.22)' },
+      { type: 'satin', ny: 0.48, top: '#594a42', bot: '#241c18', pod: '#362b25', rim: '#877064', glow: 'rgba(255,235,215,0.25)' },
+      { type: 'arch', ny: 0.47, top: '#3c524d', bot: '#192421', pod: '#273834', rim: '#5e7d76', glow: 'rgba(255,255,255,0.22)' },
+      { type: 'marble', ny: 0.48, top: '#4a435c', bot: '#1e1a26', pod: '#2f293b', rim: '#73688f', glow: 'rgba(255,255,255,0.24)' },
+      { type: 'studio', ny: 0.48, top: '#dce1eb', bot: '#aeb7c7', pod: '#919cb0', rim: '#ffffff', glow: 'rgba(255,255,255,0.6)' }
+    );
+  } else if (lum < 34 || sat < 18) {
+    scenes = new Array(
+      { type: 'bokeh', ny: 0.48, top: '#f5efe6', bot: '#d4c8b4', pod: '#bfb099', rim: '#ffffff', glow: 'rgba(255,248,235,0.8)' },
+      { type: 'satin', ny: 0.48, top: '#e8edf2', bot: '#bcc6d4', pod: '#a3b0c2', rim: '#ffffff', glow: 'rgba(255,255,255,0.8)' },
+      { type: 'arch', ny: 0.47, top: '#f2e8dc', bot: '#cfb99f', pod: '#baa082', rim: '#fcf6ee', glow: 'rgba(255,245,225,0.75)' },
+      { type: 'marble', ny: 0.48, top: '#f0f2f5', bot: '#c9cfd9', pod: '#b2bac7', rim: '#ffffff', glow: 'rgba(255,255,255,0.85)' },
+      { type: 'studio', ny: 0.48, top: '#787e8a', bot: '#32363d', pod: '#454a54', rim: '#9aa1b0', glow: 'rgba(255,255,255,0.28)' }
+    );
+  } else {
+    scenes = new Array(
+      { type: 'bokeh', ny: 0.48, top: 'hsl(' + comp + ',32%,90%)', bot: 'hsl(' + comp + ',24%,72%)', pod: 'hsl(' + comp + ',20%,62%)', rim: 'hsl(' + comp + ',40%,97%)', glow: 'rgba(255,255,255,0.75)' },
+      { type: 'satin', ny: 0.48, top: 'hsl(' + tri + ',28%,89%)', bot: 'hsl(' + tri + ',22%,71%)', pod: 'hsl(' + tri + ',18%,61%)', rim: 'hsl(' + tri + ',35%,96%)', glow: 'rgba(255,250,240,0.75)' },
+      { type: 'arch', ny: 0.47, top: 'hsl(' + ana + ',26%,91%)', bot: 'hsl(' + ana + ',20%,74%)', pod: 'hsl(' + ana + ',18%,64%)', rim: 'hsl(' + ana + ',32%,97%)', glow: 'rgba(255,255,255,0.75)' },
+      { type: 'marble', ny: 0.48, top: '#f2f4f7', bot: '#cbd1db', pod: '#b5bec9', rim: '#ffffff', glow: 'rgba(255,255,255,0.85)' },
+      { type: 'studio', ny: 0.48, top: 'hsl(' + comp + ',28%,30%)', bot: 'hsl(' + comp + ',30%,15%)', pod: 'hsl(' + comp + ',26%,21%)', rim: 'hsl(' + comp + ',30%,44%)', glow: 'rgba(255,255,255,0.24)' }
     );
   }
-  if (lum < 32 || sat < 18) {
-    return new Array(
-      { type: 'pedestal', ny: 0.52, top: '#f7f2e8', bot: '#dfd5c3', pod: '#cfc2ab', rim: '#ffffff', light: 'rgba(255,255,255,0.75)' },
-      { type: 'arch', ny: 0.50, top: '#eef2f6', bot: '#cfd7e3', pod: '#bcc7d6', rim: '#ffffff', light: 'rgba(255,255,255,0.75)' },
-      { type: 'outdoor', ny: 0.50, top: '#f2ece1', bot: '#cfc6b6', pod: '#bfb5a2', rim: '#faf6ee', light: 'rgba(255,245,220,0.65)' },
-      { type: 'marble', ny: 0.51, top: '#f5f6f8', bot: '#d7dce3', pod: '#c5ccd6', rim: '#ffffff', light: 'rgba(255,255,255,0.8)' },
-      { type: 'studio', ny: 0.52, top: '#f5e6d3', bot: '#d9be9c', pod: '#c7a780', rim: '#fcf3e8', light: 'rgba(255,240,215,0.65)' }
-    );
-  }
-  return new Array(
-    { type: 'pedestal', ny: 0.52, top: 'hsl(' + comp + ',30%,91%)', bot: 'hsl(' + comp + ',24%,76%)', pod: 'hsl(' + comp + ',22%,68%)', rim: 'hsl(' + comp + ',35%,97%)', light: 'rgba(255,255,255,0.7)' },
-    { type: 'arch', ny: 0.50, top: 'hsl(' + hue + ',26%,92%)', bot: 'hsl(' + hue + ',20%,78%)', pod: 'hsl(' + hue + ',18%,70%)', rim: 'hsl(' + hue + ',30%,98%)', light: 'rgba(255,255,255,0.75)' },
-    { type: 'outdoor', ny: 0.50, top: 'hsl(' + ana + ',28%,89%)', bot: 'hsl(' + ana + ',22%,74%)', pod: 'hsl(' + ana + ',20%,66%)', rim: 'hsl(' + ana + ',32%,96%)', light: 'rgba(255,245,220,0.65)' },
-    { type: 'marble', ny: 0.51, top: '#f4f6f9', bot: '#d5dbe3', pod: '#c3cbd6', rim: '#ffffff', light: 'rgba(255,255,255,0.8)' },
-    { type: 'studio', ny: 0.52, top: 'hsl(' + comp + ',26%,32%)', bot: 'hsl(' + comp + ',28%,17%)', pod: 'hsl(' + comp + ',25%,23%)', rim: 'hsl(' + comp + ',28%,42%)', light: 'rgba(255,255,255,0.22)' }
-  );
+  return { scenes, isBlackSole };
 }
+
 function trimBox(c) {
   const ctx = c.getContext('2d'), width = c.width, height = c.height;
   const data = ctx.getImageData(0, 0, width, height).data;
@@ -147,33 +160,39 @@ function drawBackground(ctx, W, H, sc) {
   const g = ctx.createLinearGradient(0, 0, 0, H);
   g.addColorStop(0, sc.top); g.addColorStop(1, sc.bot);
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
   if (FX.light) {
-    const spot = ctx.createRadialGradient(W * 0.32, H * 0.18, W * 0.04, W * 0.5, H * 0.45, Math.max(W, H) * 0.8);
-    spot.addColorStop(0, sc.light); spot.addColorStop(1, 'rgba(0,0,0,0)');
+    const spot = ctx.createRadialGradient(W * 0.35, H * 0.22, W * 0.05, W * 0.5, H * 0.45, Math.max(W, H) * 0.85);
+    spot.addColorStop(0, sc.glow); spot.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = spot; ctx.fillRect(0, 0, W, H);
   }
   if (!FX.arch) return;
-  if (sc.type === 'pedestal') {
-    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.75, W, H * 0.25);
-    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.beginPath(); ctx.ellipse(W * 0.5, H * 0.82, W * 0.36, H * 0.08, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = sc.pod; ctx.fillRect(W * 0.18, H * 0.72, W * 0.64, H * 0.09);
-    ctx.fillStyle = sc.rim; ctx.beginPath(); ctx.ellipse(W * 0.5, H * 0.72, W * 0.32, H * 0.065, 0, 0, Math.PI * 2); ctx.fill();
+  if (sc.type === 'bokeh') {
+    const orbs = new Array(new Array(0.18, 0.24, 0.16), new Array(0.82, 0.2, 0.19), new Array(0.75, 0.62, 0.14), new Array(0.22, 0.66, 0.13));
+    orbs.forEach(o => {
+      const rg = ctx.createRadialGradient(W * o.at(0), H * o.at(1), 4, W * o.at(0), H * o.at(1), W * o.at(2));
+      rg.addColorStop(0, sc.glow); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(W * o.at(0), H * o.at(1), W * o.at(2), 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.fillStyle = sc.pod; ctx.globalAlpha = 0.35; ctx.fillRect(0, H * 0.76, W, H * 0.24); ctx.globalAlpha = 1;
+  } else if (sc.type === 'satin') {
+    for (let i = 0; i < 4; i++) {
+      const sg = ctx.createLinearGradient(0, H * (0.15 + i * 0.2), W, H * (0.28 + i * 0.2));
+      sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, sc.glow); sg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
+    }
   } else if (sc.type === 'arch') {
-    ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.beginPath(); ctx.arc(W * 0.52, H * 0.43, W * 0.33, Math.PI, 0); ctx.lineTo(W * 0.85, H * 0.76); ctx.lineTo(W * 0.19, H * 0.76); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = sc.rim; ctx.beginPath(); ctx.arc(W * 0.5, H * 0.43, W * 0.32, Math.PI, 0); ctx.lineTo(W * 0.82, H * 0.76); ctx.lineTo(W * 0.18, H * 0.76); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.75, W, H * 0.25);
-  } else if (sc.type === 'outdoor') {
-    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.72, W, H * 0.28);
-    ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(0, H * 0.84); ctx.lineTo(W, H * 0.84); ctx.moveTo(W * 0.32, H * 0.72); ctx.lineTo(W * 0.18, H); ctx.moveTo(W * 0.68, H * 0.72); ctx.lineTo(W * 0.82, H); ctx.stroke();
+    ctx.fillStyle = sc.rim; ctx.globalAlpha = 0.45;
+    ctx.beginPath(); ctx.arc(W * 0.5, H * 0.42, W * 0.34, Math.PI, 0); ctx.lineTo(W * 0.84, H * 0.77); ctx.lineTo(W * 0.16, H * 0.77); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1; ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.77, W, H * 0.23);
   } else if (sc.type === 'marble') {
-    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.73, W, H * 0.27);
-    ctx.fillStyle = sc.rim; ctx.fillRect(0, H * 0.73, W, 5);
-  } else {
-    ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W * 0.55, 0); ctx.lineTo(W * 0.35, H * 0.76); ctx.lineTo(0, H * 0.76); ctx.closePath(); ctx.fill();
     ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.76, W, H * 0.24);
+    ctx.fillStyle = sc.rim; ctx.fillRect(0, H * 0.76, W, 4);
+  } else {
+    ctx.fillStyle = sc.pod; ctx.globalAlpha = 0.4; ctx.fillRect(0, H * 0.77, W, H * 0.23); ctx.globalAlpha = 1;
   }
 }
+
 function getLayerRect(layer, W, H) {
   const b = layer.box, pct = layer.scale / 100;
   const sc = Math.min((W * pct) / b.w, (H * pct) / b.h);
