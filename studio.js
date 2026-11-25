@@ -414,36 +414,55 @@ document.getElementById('rtDone').onclick = () => {
   }
   rtModal.style.display = 'none'; rtTarget = null;
 };
-async function processFileToLayer(file, nx, ny, scale) {
-  const modelId = FX.proAI ? 'briaai/RMBG-1.4' : 'Xenova/modnet';
-  if (!removeBgFn || removeBgFn._m !== modelId) {
-    showStatus('Step 1/3: Loading ' + (FX.proAI ? 'Pro RMBG-1.4' : 'Fast MODNet') + ' AI...');
-    const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-    const tfUrl = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'huggingface' + sl + 'transformers' + at + '3.8.0' + sl + 'dist' + sl + 'transformers.min.js';
-    const tf = await import(tfUrl);
-    tf.env.allowLocalModels = false;
-    tf.env.backends.onnx.wasm.numThreads = 1;
-    removeBgFn = await tf.pipeline('background-removal', modelId, {
-      dtype: 'q8', device: 'wasm',
-      progress_callback: (p) => { if (p && p.status === 'progress' && p.total) showStatus('Downloading AI Model: ' + Math.round((p.loaded / p.total) * 100) + '%...'); }
-    });
-    removeBgFn._m = modelId;
-  }
-  showStatus('Step 2/3: Preparing Photo...');
+ async function processFileToLayer(file, nx, ny, scale) {
+  showStatus('Preparing Photo...');
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  const maxDim = 900, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
+  const maxDim = FX.proAI ? 1200 : 640, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
   const prep = document.createElement('canvas');
   prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
   prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
   URL.revokeObjectURL(rawImg.src);
 
-  showStatus('Step 3/3: AI Cutting Product...');
+  const hfToken = (localStorage.getItem('klik_hf_token') || '').trim();
+  const at = String.fromCharCode(64), sl = String.fromCharCode(47);
+
+  if (FX.proAI && hfToken) {
+    showStatus('Cloud BiRefNet GPU Cutting (99% Sharp)...', true);
+    if (!gradioApp) {
+      const gUrl = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'gradio' + sl + 'client' + sl + '+esm';
+      const { Client } = await import(gUrl);
+      gradioApp = await Client.connect('not-lain' + sl + 'background-removal', { hf_token: hfToken });
+    }
+    const jpgBlob = await new Promise((r) => prep.toBlob(r, 'image/jpeg', 0.95));
+    const result = await gradioApp.predict(sl + 'image', { f: jpgBlob });
+    const outData = Array.isArray(result.data) ? result.data.at(0) : result.data;
+    const outUrl = Array.isArray(outData) ? outData.at(0).url : (outData.url || outData);
+    const cutImg = await new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = outUrl; });
+    const cutoutCanvas = document.createElement('canvas');
+    cutoutCanvas.width = prep.width; cutoutCanvas.height = prep.height;
+    cutoutCanvas.getContext('2d').drawImage(cutImg, 0, 0, prep.width, prep.height);
+    return { rawCanvas: prep, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale, tilt: 0 };
+  }
+
+  if (!removeBgFn) {
+    showStatus('Loading Offline AI Backup...');
+    const tfUrl = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'huggingface' + sl + 'transformers' + at + '3.8.0' + sl + 'dist' + sl + 'transformers.min.js';
+    const tf = await import(tfUrl);
+    tf.env.allowLocalModels = false;
+    tf.env.backends.onnx.wasm.numThreads = 1;
+    removeBgFn = await tf.pipeline('background-removal', 'Xenova/modnet', {
+      dtype: 'q8', device: 'wasm',
+      progress_callback: (p) => { if (p && p.status === 'progress' && p.total) showStatus('Downloading Offline AI: ' + Math.round((p.loaded / p.total) * 100) + '%...'); }
+    });
+  }
+  showStatus('Offline AI Cutting Product...', true);
   await new Promise((r) => setTimeout(r, 50));
-  const out = await removeBgFn(prep.toDataURL('image/jpeg', 0.94));
+  const out = await removeBgFn(prep.toDataURL('image/jpeg', 0.92));
   const resImg = Array.isArray(out) ? out.at(0) : out;
   const cutoutCanvas = resImg.toCanvas();
   return { rawCanvas: prep, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale, tilt: 0 };
 }
+
 
 document.getElementById('batchInput').onchange = async (e) => {
   const files = Array.from(e.target.files || []); if (!files.length) return;
