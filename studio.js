@@ -111,4 +111,45 @@ function buildMatchedScenes(img) {
     { type: 'studio', ny: 0.52, top: 'hsl(' + comp + ',26%,32%)', bot: 'hsl(' + comp + ',28%,17%)', pod: 'hsl(' + comp + ',25%,23%)', rim: 'hsl(' + comp + ',28%,42%)', light: 'rgba(255,255,255,0.22)' }
   );
 }
+function trimBox(c) {
+  const ctx = c.getContext('2d'), width = c.width, height = c.height;
+  const data = ctx.getImageData(0, 0, width, height).data;
+  let x0 = width, y0 = height, x1 = 0, y1 = 0;
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) if (data.at((y * width + x) * 4 + 3) > 25) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  return (x1 <= x0 || y1 <= y0) ? { x: 0, y: 0, w: width, h: height } : { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+function drawBackground(ctx, W, H, sc) {
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, sc.top); g.addColorStop(1, sc.bot);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  if (FX.light) {
+    const spot = ctx.createRadialGradient(W * 0.32, H * 0.18, W * 0.04, W * 0.5, H * 0.45, Math.max(W, H) * 0.8);
+    spot.addColorStop(0, sc.light); spot.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = spot; ctx.fillRect(0, 0, W, H);
+  }
+  if (!FX.arch) return;
+  if (sc.type === 'pedestal') {
+    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.75, W, H * 0.25);
+    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.beginPath(); ctx.ellipse(W * 0.5, H * 0.82, W * 0.36, H * 0.08, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = sc.pod; ctx.fillRect(W * 0.18, H * 0.72, W * 0.64, H * 0.09);
+    ctx.fillStyle = sc.rim; ctx.beginPath(); ctx.ellipse(W * 0.5, H * 0.72, W * 0.32, H * 0.065, 0, 0, Math.PI * 2); ctx.fill();
+  } else if (sc.type === 'arch') {
+    ctx.fillStyle = 'rgba(0,0,0,0.08)'; ctx.beginPath(); ctx.arc(W * 0.52, H * 0.43, W * 0.33, Math.PI, 0); ctx.lineTo(W * 0.85, H * 0.76); ctx.lineTo(W * 0.19, H * 0.76); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = sc.rim; ctx.beginPath(); ctx.arc(W * 0.5, H * 0.43, W * 0.32, Math.PI, 0); ctx.lineTo(W * 0.82, H * 0.76); ctx.lineTo(W * 0.18, H * 0.76); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.75, W, H * 0.25);
+  } else if (sc.type === 'outdoor') {
+    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.72, W, H * 0.28);
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(0, H * 0.84); ctx.lineTo(W, H * 0.84); ctx.moveTo(W * 0.32, H * 0.72); ctx.lineTo(W * 0.18, H); ctx.moveTo(W * 0.68, H * 0.72); ctx.lineTo(W * 0.82, H); ctx.stroke();
+  } else if (sc.type === 'marble') {
+    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.73, W, H * 0.27);
+    ctx.fillStyle = sc.rim; ctx.fillRect(0, H * 0.73, W, 5);
+  } else {
+    ctx.fillStyle = 'rgba(255,255,255,0.14)'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(W * 0.55, 0); ctx.lineTo(W * 0.35, H * 0.76); ctx.lineTo(0, H * 0.76); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.76, W, H * 0.24);
+  }
+}
 
