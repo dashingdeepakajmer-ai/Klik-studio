@@ -396,7 +396,7 @@ async function processFileToLayer(file, nx, ny, scale) {
     const tf = await import(tfUrl);
     tf.env.allowLocalModels = false;
     tf.env.backends.onnx.wasm.numThreads = 1;
-    removeBgFn = await tf.pipeline('background-removal', 'Xenova/modnet', {
+    removeBgFn = await tf.pipeline('background-removal', 'briaai/RMBG-1.4', {
       dtype: 'q8',
       device: 'wasm',
       progress_callback: (p) => {
