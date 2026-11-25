@@ -391,4 +391,118 @@ document.getElementById('rtDone').onclick = () => {
   }
   rtModal.style.display = 'none'; rtTarget = null;
 };
+async function processFileToLayer(file, nx, ny, scale) {
+  const modelId = FX.proAI ? 'briaai/RMBG-1.4' : 'Xenova/modnet';
+  if (!removeBgFn || removeBgFn._m !== modelId) {
+    showStatus('Step 1/3: Loading ' + (FX.proAI ? 'Pro RMBG-1.4' : 'Fast MODNet') + ' AI...');
+    const at = String.fromCharCode(64), sl = String.fromCharCode(47);
+    const tfUrl = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'huggingface' + sl + 'transformers' + at + '3.8.0' + sl + 'dist' + sl + 'transformers.min.js';
+    const tf = await import(tfUrl);
+    tf.env.allowLocalModels = false;
+    tf.env.backends.onnx.wasm.numThreads = 1;
+    removeBgFn = await tf.pipeline('background-removal', modelId, {
+      dtype: 'q8', device: 'wasm',
+      progress_callback: (p) => { if (p && p.status === 'progress' && p.total) showStatus('Downloading AI Model: ' + Math.round((p.loaded / p.total) * 100) + '%...'); }
+    });
+    removeBgFn._m = modelId;
+  }
+  showStatus('Step 2/3: Preparing Photo...');
+  const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
+  const maxDim = 900, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
+  const prep = document.createElement('canvas');
+  prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
+  prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
+  URL.revokeObjectURL(rawImg.src);
+
+  showStatus('Step 3/3: AI Cutting Product...');
+  await new Promise((r) => setTimeout(r, 50));
+  const out = await removeBgFn(prep.toDataURL('image/jpeg', 0.94));
+  const resImg = Array.isArray(out) ? out.at(0) : out;
+  const cutoutCanvas = resImg.toCanvas();
+  return { rawCanvas: prep, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale, tilt: 0 };
+}
+
+document.getElementById('batchInput').onchange = async (e) => {
+  const files = Array.from(e.target.files || []); if (!files.length) return;
+  document.getElementById('pickBtn').disabled = true;
+  await keepAlive(true);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const f = files.at(i); showStatus('Processing ' + (i + 1) + ' of ' + files.length + '...');
+      const layer = await processFileToLayer(f, 0.5, 0.51, 70);
+      const scenes = buildMatchedScenes(layer.cutoutCanvas);
+      layer.ny = scenes.at(0).ny;
+      const card = document.createElement('div'); card.className = 'item';
+      const canvas = document.createElement('canvas');
+      const it = { name: f.name.replace(/\.[^/.]+$/, '') + '_klik.png', layers: new Array(layer), activeIdx: 0, selected: false, scenes, sceneIdx: 0, canvas, history: new Array() };
+      items.push(it);
+
+      const bar1 = document.createElement('div'); bar1.className = 'bar';
+      const dots = document.createElement('div'); dots.className = 'dots';
+      it.scenes.forEach((s, idx) => {
+        const thumb = document.createElement('canvas'); thumb.width = 80; thumb.height = 80;
+        thumb.style.cssText = 'width:38px;height:38px;border-radius:8px;border:2px solid #fff7;cursor:pointer;';
+        drawBackground(thumb.getContext('2d'), 80, 80, s);
+        thumb.onclick = () => { pushUndo(it); it.sceneIdx = idx; it.layers.at(it.activeIdx).ny = s.ny; draw(it); };
+        dots.appendChild(thumb);
+      });
+
+      const undoBtn = document.createElement('button'); undoBtn.className = 'sec'; undoBtn.textContent = 'Undo';
+      undoBtn.onclick = () => undoCard(it);
+
+      const rtBtn = document.createElement('button'); rtBtn.className = 'sec'; rtBtn.textContent = 'Retouch';
+      rtBtn.onclick = () => openRetouch(it);
+
+      const addVarBtn = document.createElement('button'); addVarBtn.className = 'sec'; addVarBtn.textContent = '+ Color';
+      addVarBtn.onclick = () => { pushUndo(it); activeCardForVariant = it; document.getElementById('variantInput').click(); };
+
+      const btn = document.createElement('button'); btn.className = 'sec'; btn.textContent = 'Save';
+      btn.onclick = () => exportCleanPng(it);
+
+      const bar2 = document.createElement('div'); bar2.className = 'bar';
+      const sizeLbl = document.createElement('label'); sizeLbl.textContent = 'Size ';
+      const slider = document.createElement('input'); slider.type = 'range'; slider.min = '25'; slider.max = '98'; slider.value = '70'; slider.style.width = '80px';
+      slider.onpointerdown = () => pushUndo(it);
+      slider.oninput = () => { it.layers.at(it.activeIdx).scale = Number(slider.value); draw(it); };
+      sizeLbl.appendChild(slider); it.slider = slider;
+
+      const tiltLbl = document.createElement('label'); tiltLbl.textContent = 'Rotate ';
+      const tiltSlider = document.createElement('input'); tiltSlider.type = 'range'; tiltSlider.min = '-45'; tiltSlider.max = '45'; tiltSlider.value = '0'; tiltSlider.style.width = '80px';
+      tiltSlider.onpointerdown = () => pushUndo(it);
+      tiltSlider.oninput = () => { it.layers.at(it.activeIdx).tilt = Number(tiltSlider.value); draw(it); };
+      tiltLbl.appendChild(tiltSlider); it.tiltSlider = tiltSlider;
+
+      draw(it); attachGestures(it);
+      bar1.append(dots, undoBtn);
+      bar2.append(sizeLbl, tiltLbl, rtBtn, addVarBtn, btn);
+      card.append(canvas, bar1, bar2); gallery.prepend(card);
+    }
+    if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Done! ' + items.length + ' photos ready to edit & save.'); }
+  } catch (err) { showStatus('Error: ' + err.message); }
+  await keepAlive(false);
+  document.getElementById('pickBtn').disabled = false; e.target.value = '';
+};
+
+document.getElementById('variantInput').onchange = async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length || !activeCardForVariant) return;
+  const it = activeCardForVariant;
+  await keepAlive(true);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      showStatus('Adding color variant ' + (i + 1) + '...');
+      const count = it.layers.length;
+      const nx = Math.min(0.8, 0.35 + count * 0.18), ny = Math.min(0.75, 0.48 + count * 0.06);
+      if (count === 1) { it.layers.at(0).nx = 0.34; it.layers.at(0).scale = 54; }
+      const newLayer = await processFileToLayer(files.at(i), nx, ny, 54);
+      it.layers.push(newLayer); it.activeIdx = it.layers.length - 1; it.selected = true;
+      it.slider.value = '54'; it.tiltSlider.value = '0'; draw(it);
+    }
+    showStatus('Variant added! Touch to select, pinch to resize & rotate.');
+  } catch (err) { showStatus('Error: ' + err.message); }
+  await keepAlive(false);
+  e.target.value = '';
+};
+
+document.getElementById('downloadAllBtn').onclick = () => items.forEach((it, idx) => setTimeout(() => exportCleanPng(it), idx * 350));
 
