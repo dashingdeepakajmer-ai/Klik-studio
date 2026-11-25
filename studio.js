@@ -347,47 +347,35 @@ document.getElementById('rtDone').onclick = () => {
 
 async function processFileToLayer(file, nx, ny, scale) {
   if (!removeBgFn) {
-    showStatus('Step 1/3: Connecting AI Engine...');
+    showStatus('Step 1/3: Loading BRIA RMBG-1.4 AI...');
     const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-    const urls = new Array(
-      
-      'https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.7.0?bundle'
-    );
-    for (let u = 0; u < urls.length; u++) {
-      try {
-        const mod = await Promise.race(new Array(
-          import(urls.at(u)),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('Timeout')), 12000))
-        ));
-        removeBgFn = mod.removeBackground || mod.default;
-        if (removeBgFn) break;
-      } catch (e) {}
-    }
-    if (!removeBgFn) throw new Error('Network slow - Please retry once');
+    const tfUrl = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'huggingface' + sl + 'transformers' + at + '3.0.0' + sl + 'dist' + sl + 'transformers.min.js';
+    const tf = await import(tfUrl);
+    tf.env.allowLocalModels = false;
+    removeBgFn = await tf.pipeline('image-segmentation', 'briaai/RMBG-1.4', {
+      progress_callback: (p) => {
+        if (p && p.progress) showStatus('Downloading AI Model: ' + Math.round(p.progress) + '%...');
+      }
+    });
   }
   showStatus('Step 2/3: Preparing Photo...');
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  const maxDim = 900, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
+  const maxDim = 1024, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
   const prep = document.createElement('canvas');
   prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
   prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
-  const fastBlob = await new Promise((res) => prep.toBlob(res, 'image/jpeg', 0.94));
 
-  const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-  
-
-  const blob = await removeBgFn(fastBlob, {
-    model: 'isnet_fp16',
-    device: 'gpu',
-    progress: (key, current, total) => {
-      const pct = total ? Math.round((current / total) * 100) : 0;
-      showStatus('Step 3/3: AI Cutting (' + pct + '%)...');
-    }
-  });
-  const cutImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(blob); });
+  showStatus('Step 3/3: AI Cutting Product...');
+  const out = await removeBgFn(prep.toDataURL('image/jpeg', 0.94));
+  const maskObj = Array.isArray(out) ? out.at(0).mask : out.mask;
   const cutoutCanvas = document.createElement('canvas');
-  cutoutCanvas.width = cutImg.width; cutoutCanvas.height = cutImg.height;
-  cutoutCanvas.getContext('2d').drawImage(cutImg, 0, 0);
+  cutoutCanvas.width = prep.width; cutoutCanvas.height = prep.height;
+  const ctx = cutoutCanvas.getContext('2d');
+  ctx.drawImage(prep, 0, 0);
+  const imgData = ctx.getImageData(0, 0, prep.width, prep.height);
+  const d = imgData.data, mData = maskObj.data;
+  for (let i = 0; i < mData.length; i++) d.fill(mData.at(i), i * 4 + 3, i * 4 + 4);
+  ctx.putImageData(imgData, 0, 0);
   autoCleanCanvas(cutoutCanvas);
   return { rawImg, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale };
 }
