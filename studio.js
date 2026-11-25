@@ -302,4 +302,93 @@ function attachGestures(it) {
 
   it.canvas.addEventListener('touchend', () => { dragIdx = -1; pinchDist = 0; });
 }
+let rtTarget = null, rtMode = 'magic', rtDrawing = false, rtBackup = null;
+const rtModal = document.getElementById('retouchModal'), rtCanvas = document.getElementById('retouchCanvas');
+const brushSize = document.getElementById('brushSize');
+
+function setRtMode(m) {
+  rtMode = m;
+  document.getElementById('modeMagic').className = m === 'magic' ? '' : 'sec';
+  document.getElementById('modeErase').className = m === 'erase' ? '' : 'sec';
+  document.getElementById('modeRestore').className = m === 'restore' ? '' : 'sec';
+}
+document.getElementById('modeMagic').onclick = () => setRtMode('magic');
+document.getElementById('modeErase').onclick = () => setRtMode('erase');
+document.getElementById('modeRestore').onclick = () => setRtMode('restore');
+document.getElementById('rtUndo').onclick = () => { if (rtBackup) { rtCanvas.getContext('2d').putImageData(rtBackup, 0, 0); rtBackup = null; } };
+
+function openRetouch(it) {
+  const layer = it.layers.at(it.activeIdx);
+  rtTarget = { it, layer };
+  rtCanvas.width = layer.cutoutCanvas.width;
+  rtCanvas.height = layer.cutoutCanvas.height;
+  rtCanvas.getContext('2d').drawImage(layer.cutoutCanvas, 0, 0);
+  rtBackup = null; setRtMode('magic'); rtModal.style.display = 'flex';
+}
+
+function smartAutoRemoveStroke(cx, cy, radius) {
+  const w = rtCanvas.width, h = rtCanvas.height, ctx = rtCanvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data;
+  const visited = new Uint8Array(w * h), stack = new Array();
+  let rSum = 0, gSum = 0, bSum = 0, n = 0;
+  const rInt = Math.max(2, Math.round(radius));
+  for (let dy = -rInt; dy <= rInt; dy++) for (let dx = -rInt; dx <= rInt; dx++) {
+    if (dx * dx + dy * dy > rInt * rInt) continue;
+    const px = Math.round(cx + dx), py = Math.round(cy + dy);
+    if (px < 0 || px >= w || py < 0 || py >= h) continue;
+    const idx = py * w + px;
+    if (d.at(idx * 4 + 3) >= 30 && !visited.at(idx)) {
+      visited.fill(1, idx, idx + 1); stack.push(idx);
+      rSum += d.at(idx * 4); gSum += d.at(idx * 4 + 1); bSum += d.at(idx * 4 + 2); n++;
+    }
+  }
+  if (!n) return;
+  const r0 = rSum / n, g0 = gSum / n, b0 = bSum / n;
+  while (stack.length) {
+    const idx = stack.pop(); d.fill(0, idx * 4 + 3, idx * 4 + 4);
+    const x = idx % w, y = (idx - x) / w;
+    const nb = new Array(x > 0 ? idx - 1 : -1, x < w - 1 ? idx + 1 : -1, y > 0 ? idx - w : -1, y < h - 1 ? idx + w : -1);
+    for (let k = 0; k < 4; k++) {
+      const ni = nb.at(k);
+      if (ni >= 0 && !visited.at(ni) && d.at(ni * 4 + 3) >= 30) {
+        const diff = Math.abs(d.at(ni * 4) - r0) + Math.abs(d.at(ni * 4 + 1) - g0) + Math.abs(d.at(ni * 4 + 2) - b0);
+        if (diff < 78) { visited.fill(1, ni, ni + 1); stack.push(ni); }
+      }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function applyBrush(ev) {
+  const rect = rtCanvas.getBoundingClientRect();
+  const cx = ev.touches ? ev.touches.item(0).clientX : ev.clientX;
+  const cy = ev.touches ? ev.touches.item(0).clientY : ev.clientY;
+  const scaleX = rtCanvas.width / rect.width, scaleY = rtCanvas.height / rect.height;
+  const x = (cx - rect.left) * scaleX, y = (cy - rect.top) * scaleY;
+  const r = Number(brushSize.value) * Math.max(scaleX, scaleY) * 0.5;
+  const ctx = rtCanvas.getContext('2d');
+  if (rtMode === 'magic') smartAutoRemoveStroke(x, y, r);
+  else if (rtMode === 'erase') { ctx.save(); ctx.globalCompositeOperation = 'destination-out'; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
+  else if (rtMode === 'restore' && rtTarget) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(rtTarget.layer.rawCanvas, 0, 0, rtCanvas.width, rtCanvas.height); ctx.restore(); }
+}
+
+function startRtDraw(e) { rtBackup = rtCanvas.getContext('2d').getImageData(0, 0, rtCanvas.width, rtCanvas.height); rtDrawing = true; applyBrush(e); }
+rtCanvas.addEventListener('mousedown', startRtDraw);
+rtCanvas.addEventListener('mousemove', (e) => { if (rtDrawing) applyBrush(e); });
+window.addEventListener('mouseup', () => { rtDrawing = false; });
+rtCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startRtDraw(e); }, { passive: false });
+rtCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (rtDrawing) applyBrush(e); }, { passive: false });
+rtCanvas.addEventListener('touchend', () => { rtDrawing = false; });
+
+document.getElementById('rtCancel').onclick = () => { rtModal.style.display = 'none'; rtTarget = null; };
+document.getElementById('rtDone').onclick = () => {
+  if (rtTarget) {
+    pushUndo(rtTarget.it);
+    const l = rtTarget.layer;
+    l.cutoutCanvas.getContext('2d').clearRect(0, 0, l.cutoutCanvas.width, l.cutoutCanvas.height);
+    l.cutoutCanvas.getContext('2d').drawImage(rtCanvas, 0, 0);
+    l.box = trimBox(l.cutoutCanvas); draw(rtTarget.it);
+  }
+  rtModal.style.display = 'none'; rtTarget = null;
+};
 
