@@ -6,12 +6,33 @@ const RATIOS = {
 };
 
 const FX = { proAI: true, floor: true, border3d: true, light: true, arch: true };
-let logoImg = null, removeBgFn = null, activeCardForVariant = null, wakeLock = null;
+let logoImg = null, removeBgFn = null, gradioApp = null, activeCardForVariant = null, wakeLock = null, stopBatch = false, timerId = null;
 const items = [], statusBox = document.getElementById('statusBox'), gallery = document.getElementById('gallery');
 const logoThumb = document.getElementById('logoThumb'), logoPos = document.getElementById('logoPos'), logoSize = document.getElementById('logoSize');
-const ratioSel = document.getElementById('ratioSel');
+const ratioSel = document.getElementById('ratioSel'), hfInput = document.getElementById('hfTokenInput');
 
-function showStatus(t) { statusBox.style.display = 'block'; statusBox.textContent = t; }
+hfInput.value = localStorage.getItem('klik_hf_token') || '';
+document.getElementById('saveTokenBtn').onclick = () => {
+  localStorage.setItem('klik_hf_token', hfInput.value.trim());
+  gradioApp = null;
+  showStatus('Free HF Cloud Key Saved!');
+};
+
+window.addEventListener('pageshow', (e) => { if (e.persisted && !items.length) statusBox.style.display = 'none'; });
+
+function showStatus(t, live) {
+  if (timerId) { clearInterval(timerId); timerId = null; }
+  statusBox.style.display = 'block';
+  if (!live) { statusBox.textContent = t; return; }
+  let sec = 0;
+  const render = () => {
+    statusBox.innerHTML = t + ' <b>(' + sec + 's)</b> <button id="stopNowBtn" style="margin-left:8px;padding:4px 10px;background:#ef4444;font-size:12px;">Stop</button>';
+    const b = document.getElementById('stopNowBtn');
+    if (b) b.onclick = () => { stopBatch = true; showStatus('Stopping after current photo...'); };
+  };
+  render();
+  timerId = setInterval(() => { sec++; render(); }, 1000);
+}
 
 async function keepAlive(on) {
   try {
@@ -24,8 +45,9 @@ document.getElementById('tabAI').onclick = () => {
   FX.proAI = !FX.proAI;
   const el = document.getElementById('tabAI');
   el.className = FX.proAI ? 'chip on' : 'chip';
-  el.textContent = FX.proAI ? 'AI: Pro (RMBG-1.4)' : 'AI: Fast (MODNet)';
+  el.textContent = FX.proAI ? 'AI: Cloud BiRefNet (99%)' : 'AI: Offline Backup (MODNet)';
 };
+
 
 function bindTab(id, key, label, redraw) {
   const el = document.getElementById(id);
