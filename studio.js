@@ -559,3 +559,52 @@ async function restoreVault() {
   } catch (e) {}
 }
 restoreVault();
+document.getElementById('batchInput').onchange = async (e) => {
+  const files = Array.from(e.target.files || []); if (!files.length) return;
+  document.getElementById('pickBtn').disabled = true; stopBatch = false;
+  await keepAlive(true);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      if (stopBatch) break;
+      const f = files.at(i); showStatus('Processing ' + (i + 1) + ' of ' + files.length + '...', true);
+      const layer = await processFileToLayer(f, 0.5, 0.51, 70);
+      const scenes = buildMatchedScenes(layer.cutoutCanvas);
+      layer.ny = scenes.at(0).ny;
+      const it = { id: Date.now() + '_' + i, name: f.name.replace(/\.[^/.]+$/, '') + '_klik.png', layers: new Array(layer), activeIdx: 0, selected: false, scenes, sceneIdx: 0, canvas: null, history: new Array() };
+      items.push(it); buildPhotoCard(it); await saveToVault(it);
+    }
+    if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Done! ' + items.length + ' photos ready & auto-saved to vault.'); }
+  } catch (err) { showStatus('Error: ' + err.message); }
+  await keepAlive(false);
+  document.getElementById('pickBtn').disabled = false; e.target.value = '';
+};
+
+document.getElementById('variantInput').onchange = async (e) => {
+  const files = Array.from(e.target.files || []);
+  if (!files.length || !activeCardForVariant) return;
+  const it = activeCardForVariant;
+  await keepAlive(true);
+  try {
+    for (let i = 0; i < files.length; i++) {
+      showStatus('Adding color variant ' + (i + 1) + '...', true);
+      const count = it.layers.length;
+      const nx = Math.min(0.8, 0.35 + count * 0.18), ny = Math.min(0.75, 0.48 + count * 0.06);
+      if (count === 1) { it.layers.at(0).nx = 0.34; it.layers.at(0).scale = 54; }
+      const newLayer = await processFileToLayer(files.at(i), nx, ny, 54);
+      it.layers.push(newLayer); it.activeIdx = it.layers.length - 1; it.selected = true;
+      it.slider.value = '54'; it.tiltSlider.value = '0'; draw(it); await saveToVault(it);
+    }
+    showStatus('Variant added! Touch to select, pinch to resize & rotate.');
+  } catch (err) { showStatus('Error: ' + err.message); }
+  await keepAlive(false);
+  e.target.value = '';
+};
+
+document.getElementById('downloadAllBtn').onclick = () => items.forEach((it, idx) => setTimeout(() => exportCleanPng(it), idx * 350));
+document.getElementById('clearBatchBtn').onclick = async () => {
+  const db = await openVault();
+  db.transaction('photos', 'readwrite').objectStore('photos').clear();
+  items.length = 0; gallery.innerHTML = '';
+  document.getElementById('actionsBar').style.display = 'none';
+  showStatus('Cleared all saved photos.');
+};
