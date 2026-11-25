@@ -13,7 +13,7 @@
     .chip { background: #272a36; color: #9ca3af; border: 1px solid #383c4c; border-radius: 20px; padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer; }
     .chip.on { background: #2e2459; color: #c4b5fd; border-color: #7557ff; }
     .full { width: 100%; padding: 14px; font-size: 16px; }
-    select, input[type="password"] { background: #272a36; color: #fff; border: 1px solid #383c4c; border-radius: 10px; padding: 8px; font-size: 13px; }
+    select { background: #272a36; color: #fff; border: 1px solid #383c4c; border-radius: 10px; padding: 8px; font-size: 13px; }
     label { font-size: 12px; color: #9ca3af; display: inline-flex; align-items: center; gap: 5px; }
     #statusBox { display: none; background: #1f2230; border-left: 4px solid #7557ff; padding: 11px; border-radius: 10px; margin-bottom: 12px; font-size: 14px; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 14px; }
@@ -27,13 +27,9 @@
 </head>
 <body>
   <h2 style="margin:0 0 2px;">KLIK Product Studio</h2>
-  <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">Cloud BiRefNet (99%) • Auto-Vault Memory • Full Undo</div>
+  <div style="font-size:12px;color:#9ca3af;margin-bottom:14px;">100% Unlimited Pro AI • No Tokens • Auto-Vault Memory</div>
   <div class="card">
-    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">1. Free Cloud Key & Brand Logo</div>
-    <div class="row" style="margin-bottom:8px;">
-      <input type="password" id="hfTokenInput" placeholder="Paste Free HF Token (hf_...)" style="flex:1;min-width:160px;" />
-      <button class="sec" id="saveTokenBtn">Save Key</button>
-    </div>
+    <div style="font-size:13px;font-weight:600;margin-bottom:8px;">1. Brand Logo & Canvas Size</div>
     <div class="row" style="margin-bottom:10px;">
       <img id="logoThumb" style="width:36px;height:36px;object-fit:contain;background:#272a36;border-radius:8px;" />
       <button class="sec" id="logoBtn">Upload Logo</button>
@@ -52,9 +48,9 @@
         <option value="16:9">16:9 Banner</option>
       </select>
     </div>
-    <div style="font-size:12px;color:#9ca3af;margin-bottom:6px;">2. AI Engine & Effect Tabs:</div>
+    <div style="font-size:12px;color:#9ca3af;margin-bottom:6px;">2. Default Studio Effects:</div>
     <div class="row">
-      <button type="button" class="chip on" id="tabAI">AI: Cloud BiRefNet (99%)</button>
+      <button type="button" class="chip on" id="tabAI">AI: Unlimited Pro (1024px)</button>
       <button type="button" class="chip on" id="tabFloor">Floor Shadow: ON</button>
       <button type="button" class="chip on" id="tab3D">3D Border: ON</button>
       <button type="button" class="chip on" id="tabLight">Lighting: ON</button>
@@ -62,7 +58,7 @@
     </div>
   </div>
   <div class="card">
-    <button class="full" id="pickBtn">+ Select Product Photos (Batch)</button>
+    <button class="full" id="pickBtn">+ Select Product Photos (Unlimited Batch)</button>
     <input type="file" id="batchInput" accept="image/*" multiple hidden />
     <input type="file" id="variantInput" accept="image/*" multiple hidden />
   </div>
@@ -92,6 +88,6 @@
       <label>Size <input type="range" id="brushSize" min="8" max="90" value="28" style="width:80px;" /></label>
     </div>
   </div>
-  <script src="studio.js?v=32"></script>
+  <script src="studio.js?v=34"></script>
 </body>
 </html>
