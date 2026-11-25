@@ -434,7 +434,7 @@ document.getElementById('rtDone').onclick = () => {
       gradioApp = await Client.connect('not-lain' + sl + 'background-removal', { hf_token: hfToken });
     }
     const jpgBlob = await new Promise((r) => prep.toBlob(r, 'image/jpeg', 0.95));
-    const result = await gradioApp.predict(sl + 'image', { f: jpgBlob });
+    const result = await gradioApp.predict(sl + 'image', { image: jpgBlob });
     const outData = Array.isArray(result.data) ? result.data.at(0) : result.data;
     const outUrl = Array.isArray(outData) ? outData.at(0).url : (outData.url || outData);
     const cutImg = await new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = outUrl; });
