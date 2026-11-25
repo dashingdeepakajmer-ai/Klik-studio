@@ -152,4 +152,43 @@ function drawBackground(ctx, W, H, sc) {
     ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.76, W, H * 0.24);
   }
 }
+function getLayerRect(layer, W, H) {
+  const b = layer.box, pct = layer.scale / 100;
+  const sc = Math.min((W * pct) / b.w, (H * pct) / b.h);
+  const dw = b.w * sc, dh = b.h * sc;
+  const dx = (W * layer.nx) - dw / 2, dy = (H * layer.ny) - dh / 2;
+  return { dx, dy, dw, dh };
+}
+
+function cloneCanvas(src) {
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
+  c.getContext('2d').drawImage(src, 0, 0); return c;
+}
+
+function pushUndo(it) {
+  if (!it.history) it.history = new Array();
+  it.history.push({
+    sceneIdx: it.sceneIdx, activeIdx: it.activeIdx,
+    layers: it.layers.map(l => ({ nx: l.nx, ny: l.ny, scale: l.scale, tilt: l.tilt || 0, cut: cloneCanvas(l.cutoutCanvas), box: Object.assign({}, l.box) }))
+  });
+  if (it.history.length > 12) it.history.shift();
+}
+
+function undoCard(it) {
+  if (!it.history || !it.history.length) return;
+  const prev = it.history.pop();
+  it.sceneIdx = prev.sceneIdx;
+  it.activeIdx = Math.min(prev.activeIdx, it.layers.length - 1);
+  prev.layers.forEach((st, idx) => {
+    const l = it.layers.at(idx);
+    if (l) {
+      l.nx = st.nx; l.ny = st.ny; l.scale = st.scale; l.tilt = st.tilt || 0;
+      l.cutoutCanvas = st.cut; l.box = st.box;
+    }
+  });
+  const active = it.layers.at(it.activeIdx);
+  if (active && it.slider) it.slider.value = String(active.scale);
+  if (active && it.tiltSlider) it.tiltSlider.value = String(active.tilt || 0);
+  draw(it);
+}
 
