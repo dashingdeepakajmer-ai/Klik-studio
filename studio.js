@@ -191,4 +191,51 @@ function undoCard(it) {
   if (active && it.tiltSlider) it.tiltSlider.value = String(active.tilt || 0);
   draw(it);
 }
+function draw(it, hideBox) {
+  const dims = RATIOS[ratioSel.value] || new Array(1200, 1200);
+  const W = dims.at(0), H = dims.at(1), c = it.canvas;
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d'), sc = it.scenes.at(it.sceneIdx);
+  drawBackground(ctx, W, H, sc);
+
+  it.layers.forEach((layer, idx) => {
+    const r = getLayerRect(layer, W, H);
+    const rad = ((layer.tilt || 0) * Math.PI) / 180;
+    if (FX.floor) {
+      ctx.save(); ctx.translate(r.dx + r.dw / 2, r.dy + r.dh - H * 0.01); ctx.scale(1, 0.2);
+      const sg = ctx.createRadialGradient(0, 0, 8, 0, 0, r.dw * 0.48);
+      sg.addColorStop(0, 'rgba(0,0,0,0.38)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, r.dw * 0.48, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+    ctx.save();
+    ctx.translate(r.dx + r.dw / 2, r.dy + r.dh / 2);
+    ctx.rotate(rad);
+    if (FX.border3d) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.44)';
+      ctx.shadowBlur = Math.round(Math.min(W, H) * 0.024);
+      ctx.shadowOffsetX = Math.round(W * 0.014);
+      ctx.shadowOffsetY = Math.round(H * 0.018);
+    }
+    ctx.drawImage(layer.cutoutCanvas, layer.box.x, layer.box.y, layer.box.w, layer.box.h, -r.dw / 2, -r.dh / 2, r.dw, r.dh);
+    if (!hideBox && it.selected && idx === it.activeIdx) {
+      ctx.shadowColor = 'transparent';
+      ctx.strokeStyle = '#7557ff'; ctx.lineWidth = 4; ctx.setLineDash(new Array(10, 6));
+      ctx.strokeRect(-r.dw / 2 - 4, -r.dh / 2 - 4, r.dw + 8, r.dh + 8);
+    }
+    ctx.restore();
+  });
+
+  if (logoImg) {
+    const minSide = Math.min(W, H), lw = minSide * (Number(logoSize.value) / 100);
+    const lh = lw * (logoImg.height / logoImg.width), p = minSide * 0.045, pos = logoPos.value;
+    ctx.drawImage(logoImg, pos.includes('r') ? W - lw - p : p, pos.includes('b') ? H - lh - p : p, lw, lh);
+  }
+}
+
+function exportCleanPng(it) {
+  draw(it, true);
+  const url = it.canvas.toDataURL('image/png');
+  draw(it, false);
+  const a = document.createElement('a'); a.download = it.name; a.href = url; a.click();
+}
 
