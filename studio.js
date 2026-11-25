@@ -517,6 +517,14 @@ function buildPhotoCard(it) {
   const undoBtn = document.createElement('button'); undoBtn.className = 'sec'; undoBtn.textContent = 'Undo';
   undoBtn.onclick = () => { undoCard(it); saveToVault(it); };
 
+  const shBtn = document.createElement('button');
+  shBtn.className = it.edgeShadow ? 'chip on' : 'chip'; shBtn.textContent = 'Shadow';
+  shBtn.onclick = () => { it.edgeShadow = !it.edgeShadow; shBtn.className = it.edgeShadow ? 'chip on' : 'chip'; draw(it); saveToVault(it); };
+
+  const rfBtn = document.createElement('button');
+  rfBtn.className = it.reflect ? 'chip on' : 'chip'; rfBtn.textContent = 'Reflect';
+  rfBtn.onclick = () => { it.reflect = !it.reflect; rfBtn.className = it.reflect ? 'chip on' : 'chip'; draw(it); saveToVault(it); };
+
   const rtBtn = document.createElement('button'); rtBtn.className = 'sec'; rtBtn.textContent = 'Retouch';
   rtBtn.onclick = () => openRetouch(it);
 
@@ -528,24 +536,27 @@ function buildPhotoCard(it) {
 
   const bar2 = document.createElement('div'); bar2.className = 'bar';
   const sizeLbl = document.createElement('label'); sizeLbl.textContent = 'Size ';
-  const slider = document.createElement('input'); slider.type = 'range'; slider.min = '25'; slider.max = '98'; slider.value = String(it.layers.at(0).scale); slider.style.width = '80px';
+  const slider = document.createElement('input'); slider.type = 'range'; slider.min = '25'; slider.max = '98'; slider.value = String(it.layers.at(0).scale); slider.style.width = '72px';
   slider.onpointerdown = () => pushUndo(it);
   slider.oninput = () => { it.layers.at(it.activeIdx).scale = Number(slider.value); draw(it); };
   slider.onchange = () => saveToVault(it);
   sizeLbl.appendChild(slider); it.slider = slider;
 
   const tiltLbl = document.createElement('label'); tiltLbl.textContent = 'Rotate ';
-  const tiltSlider = document.createElement('input'); tiltSlider.type = 'range'; tiltSlider.min = '-45'; tiltSlider.max = '45'; tiltSlider.value = String(it.layers.at(0).tilt || 0); tiltSlider.style.width = '80px';
+  const tiltSlider = document.createElement('input'); tiltSlider.type = 'range'; tiltSlider.min = '-45'; tiltSlider.max = '45'; tiltSlider.value = String(it.layers.at(0).tilt || 0); tiltSlider.style.width = '72px';
   tiltSlider.onpointerdown = () => pushUndo(it);
   tiltSlider.oninput = () => { it.layers.at(it.activeIdx).tilt = Number(tiltSlider.value); draw(it); };
   tiltSlider.onchange = () => saveToVault(it);
   tiltLbl.appendChild(tiltSlider); it.tiltSlider = tiltSlider;
 
+  const bar3 = document.createElement('div'); bar3.className = 'bar';
   draw(it); attachGestures(it);
   bar1.append(dots, undoBtn);
-  bar2.append(sizeLbl, tiltLbl, rtBtn, addVarBtn, btn);
-  card.append(canvas, bar1, bar2); gallery.prepend(card);
+  bar2.append(sizeLbl, tiltLbl, shBtn, rfBtn);
+  bar3.append(rtBtn, addVarBtn, btn);
+  card.append(canvas, bar1, bar2, bar3); gallery.prepend(card);
 }
+
 function openVault() {
   return new Promise((res, rej) => {
     const req = indexedDB.open('klik_vault', 1);
@@ -564,7 +575,7 @@ async function saveToVault(it) {
       rawUrl: l.rawCanvas.toDataURL('image/jpeg', 0.85)
     }));
     const tx = db.transaction('photos', 'readwrite');
-    tx.objectStore('photos').put({ id: it.id, name: it.name, scenes: it.scenes, sceneIdx: it.sceneIdx, layersData });
+    tx.objectStore('photos').put({ id: it.id, name: it.name, scenes: it.scenes, sceneIdx: it.sceneIdx, edgeShadow: it.edgeShadow, reflect: it.reflect, layersData });
   } catch (e) {}
 }
 
@@ -587,7 +598,7 @@ async function restoreVault() {
           });
           layers.push({ rawCanvas: await loadC(ld.rawUrl), cutoutCanvas: await loadC(ld.cutUrl), box: ld.box, nx: ld.nx, ny: ld.ny, scale: ld.scale, tilt: ld.tilt || 0 });
         }
-        const it = { id: rec.id, name: rec.name, layers, activeIdx: 0, selected: false, scenes: rec.scenes, sceneIdx: rec.sceneIdx, canvas: null, history: new Array() };
+        const it = { id: rec.id, name: rec.name, layers, activeIdx: 0, selected: false, scenes: rec.scenes, sceneIdx: rec.sceneIdx, edgeShadow: rec.edgeShadow, reflect: rec.reflect, canvas: null, history: new Array() };
         items.push(it); buildPhotoCard(it);
       }
       if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Restored ' + items.length + ' saved photos.'); }
@@ -595,6 +606,7 @@ async function restoreVault() {
   } catch (e) {}
 }
 restoreVault();
+
 document.getElementById('batchInput').onchange = async (e) => {
   const files = Array.from(e.target.files || []); if (!files.length) return;
   document.getElementById('pickBtn').disabled = true; stopBatch = false;
@@ -603,10 +615,10 @@ document.getElementById('batchInput').onchange = async (e) => {
     for (let i = 0; i < files.length; i++) {
       if (stopBatch) break;
       const f = files.at(i); showStatus('Processing ' + (i + 1) + ' of ' + files.length + '...', true);
-      const layer = await processFileToLayer(f, 0.5, 0.51, 70);
-      const scenes = buildMatchedScenes(layer.cutoutCanvas);
-      layer.ny = scenes.at(0).ny;
-      const it = { id: Date.now() + '_' + i, name: f.name.replace(/\.[^/.]+$/, '') + '_klik.png', layers: new Array(layer), activeIdx: 0, selected: false, scenes, sceneIdx: 0, canvas: null, history: new Array() };
+      const layer = await processFileToLayer(f, 0.5, 0.48, 78);
+      const analyzed = detectSoleAndScenes(layer.cutoutCanvas);
+      layer.ny = analyzed.scenes.at(0).ny;
+      const it = { id: Date.now() + '_' + i, name: f.name.replace(/\.[^/.]+$/, '') + '_klik.png', layers: new Array(layer), activeIdx: 0, selected: false, scenes: analyzed.scenes, sceneIdx: 0, edgeShadow: !analyzed.isBlackSole, reflect: true, canvas: null, history: new Array() };
       items.push(it); buildPhotoCard(it); await saveToVault(it);
     }
     if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Done! ' + items.length + ' photos ready & auto-saved to vault.'); }
@@ -625,10 +637,10 @@ document.getElementById('variantInput').onchange = async (e) => {
       showStatus('Adding color variant ' + (i + 1) + '...', true);
       const count = it.layers.length;
       const nx = Math.min(0.8, 0.35 + count * 0.18), ny = Math.min(0.75, 0.48 + count * 0.06);
-      if (count === 1) { it.layers.at(0).nx = 0.34; it.layers.at(0).scale = 54; }
-      const newLayer = await processFileToLayer(files.at(i), nx, ny, 54);
+      if (count === 1) { it.layers.at(0).nx = 0.34; it.layers.at(0).scale = 58; }
+      const newLayer = await processFileToLayer(files.at(i), nx, ny, 58);
       it.layers.push(newLayer); it.activeIdx = it.layers.length - 1; it.selected = true;
-      it.slider.value = '54'; it.tiltSlider.value = '0'; draw(it); await saveToVault(it);
+      it.slider.value = '58'; it.tiltSlider.value = '0'; draw(it); await saveToVault(it);
     }
     showStatus('Variant added! Touch to select, pinch to resize & rotate.');
   } catch (err) { showStatus('Error: ' + err.message); }
