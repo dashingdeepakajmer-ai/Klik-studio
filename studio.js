@@ -436,7 +436,7 @@ document.getElementById('rtDone').onclick = () => {
     const jpgBlob = await new Promise((r) => prep.toBlob(r, 'image/jpeg', 0.95));
     const result = await gradioApp.predict(sl + 'image', { image: jpgBlob });
     const outData = Array.isArray(result.data) ? result.data.at(0) : result.data;
-    const outUrl = Array.isArray(outData) ? outData.at(0).url : (outData.url || outData);
+    const outUrl = Array.isArray(outData) ? outData.at(1).url : (outData.url || outData);
     const cutImg = await new Promise((res, rej) => { const im = new Image(); im.crossOrigin = 'anonymous'; im.onload = () => res(im); im.onerror = rej; im.src = outUrl; });
     const cutoutCanvas = document.createElement('canvas');
     cutoutCanvas.width = prep.width; cutoutCanvas.height = prep.height;
