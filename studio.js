@@ -347,18 +347,19 @@ document.getElementById('rtDone').onclick = () => {
 
 async function processFileToLayer(file, nx, ny, scale) {
   if (!removeBgFn) {
-    showStatus('Step 1/3: Loading Background AI...');
+    showStatus('Step 1/3: Loading MODNet Background AI...');
     const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-    const tfUrl = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'huggingface' + sl + 'transformers' + at + '3.0.0' + sl + 'dist' + sl + 'transformers.min.js';
+    const tfUrl = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'huggingface' + sl + 'transformers' + at + '3.8.0' + sl + 'dist' + sl + 'transformers.min.js';
     const tf = await import(tfUrl);
     tf.env.allowLocalModels = false;
     tf.env.backends.onnx.wasm.numThreads = 1;
     removeBgFn = await tf.pipeline('background-removal', 'Xenova/modnet', {
+      dtype: 'q8',
       device: 'wasm',
       progress_callback: (p) => {
         if (p && p.status === 'progress' && p.total) {
           const pct = Math.round((p.loaded / p.total) * 100);
-          showStatus('Downloading AI Model: ' + pct + '%...');
+          showStatus('Downloading AI Model (24MB): ' + pct + '%...');
         }
       }
     });
@@ -374,12 +375,7 @@ async function processFileToLayer(file, nx, ny, scale) {
   await new Promise((r) => setTimeout(r, 50));
   const out = await removeBgFn(prep.toDataURL('image/jpeg', 0.94));
   const resImg = Array.isArray(out) ? out.at(0) : out;
-  const cutoutCanvas = document.createElement('canvas');
-  cutoutCanvas.width = resImg.width; cutoutCanvas.height = resImg.height;
-  const ctx = cutoutCanvas.getContext('2d');
-  const imgData = ctx.createImageData(resImg.width, resImg.height);
-  imgData.data.set(resImg.data);
-  ctx.putImageData(imgData, 0, 0);
+  const cutoutCanvas = resImg.toCanvas();
   autoCleanCanvas(cutoutCanvas);
   return { rawImg, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale };
 }
