@@ -374,11 +374,11 @@ async function processFileToLayer(file, nx, ny, scale) {
   const fastBlob = await new Promise((res) => prep.toBlob(res, 'image/jpeg', 0.94));
 
   const at = String.fromCharCode(64), sl = String.fromCharCode(47);
-  const publicPath = 'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'imgly' + sl + 'background-removal-data' + at + '1.4.5' + sl;
+  
 
   const blob = await removeBgFn(fastBlob, {
     model: 'medium',
-    publicPath: publicPath,
+    
     progress: (key, current, total) => {
       const pct = total ? Math.round((current / total) * 100) : 0;
       showStatus('Step 3/3: AI Cutting (' + pct + '%)...');
