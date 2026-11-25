@@ -351,7 +351,7 @@ async function processFileToLayer(file, nx, ny, scale) {
     const at = String.fromCharCode(64), sl = String.fromCharCode(47);
     const urls = new Array(
       
-      'https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5?bundle'
+      'https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.7.0?bundle'
     );
     for (let u = 0; u < urls.length; u++) {
       try {
@@ -377,8 +377,8 @@ async function processFileToLayer(file, nx, ny, scale) {
   
 
   const blob = await removeBgFn(fastBlob, {
-    model: 'medium',
-    device: 'cpu',
+    model: 'isnet_fp16',
+    device: 'gpu',
     progress: (key, current, total) => {
       const pct = total ? Math.round((current / total) * 100) : 0;
       showStatus('Step 3/3: AI Cutting (' + pct + '%)...');
