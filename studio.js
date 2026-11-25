@@ -350,7 +350,7 @@ async function processFileToLayer(file, nx, ny, scale) {
     showStatus('Step 1/3: Connecting AI Engine...');
     const at = String.fromCharCode(64), sl = String.fromCharCode(47);
     const urls = new Array(
-      'https:' + sl + sl + 'cdn.jsdelivr.net' + sl + 'npm' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5' + sl + 'dist' + sl + 'browser.mjs',
+      
       'https:' + sl + sl + 'esm.sh' + sl + at + 'imgly' + sl + 'background-removal' + at + '1.4.5?bundle'
     );
     for (let u = 0; u < urls.length; u++) {
