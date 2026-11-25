@@ -464,87 +464,49 @@ document.getElementById('rtDone').onclick = () => {
 }
 
 
-document.getElementById('batchInput').onchange = async (e) => {
-  const files = Array.from(e.target.files || []); if (!files.length) return;
-  document.getElementById('pickBtn').disabled = true;
-  await keepAlive(true);
-  try {
-    for (let i = 0; i < files.length; i++) {
-      const f = files.at(i); showStatus('Processing ' + (i + 1) + ' of ' + files.length + '...');
-      const layer = await processFileToLayer(f, 0.5, 0.51, 70);
-      const scenes = buildMatchedScenes(layer.cutoutCanvas);
-      layer.ny = scenes.at(0).ny;
-      const card = document.createElement('div'); card.className = 'item';
-      const canvas = document.createElement('canvas');
-      const it = { name: f.name.replace(/\.[^/.]+$/, '') + '_klik.png', layers: new Array(layer), activeIdx: 0, selected: false, scenes, sceneIdx: 0, canvas, history: new Array() };
-      items.push(it);
+function buildPhotoCard(it) {
+  const card = document.createElement('div'); card.className = 'item';
+  const canvas = document.createElement('canvas'); it.canvas = canvas;
 
-      const bar1 = document.createElement('div'); bar1.className = 'bar';
-      const dots = document.createElement('div'); dots.className = 'dots';
-      it.scenes.forEach((s, idx) => {
-        const thumb = document.createElement('canvas'); thumb.width = 80; thumb.height = 80;
-        thumb.style.cssText = 'width:38px;height:38px;border-radius:8px;border:2px solid #fff7;cursor:pointer;';
-        drawBackground(thumb.getContext('2d'), 80, 80, s);
-        thumb.onclick = () => { pushUndo(it); it.sceneIdx = idx; it.layers.at(it.activeIdx).ny = s.ny; draw(it); };
-        dots.appendChild(thumb);
-      });
+  const bar1 = document.createElement('div'); bar1.className = 'bar';
+  const dots = document.createElement('div'); dots.className = 'dots';
+  it.scenes.forEach((s, idx) => {
+    const thumb = document.createElement('canvas'); thumb.width = 80; thumb.height = 80;
+    thumb.style.cssText = 'width:38px;height:38px;border-radius:8px;border:2px solid #fff7;cursor:pointer;';
+    drawBackground(thumb.getContext('2d'), 80, 80, s);
+    thumb.onclick = () => { pushUndo(it); it.sceneIdx = idx; it.layers.at(it.activeIdx).ny = s.ny; draw(it); saveToVault(it); };
+    dots.appendChild(thumb);
+  });
 
-      const undoBtn = document.createElement('button'); undoBtn.className = 'sec'; undoBtn.textContent = 'Undo';
-      undoBtn.onclick = () => undoCard(it);
+  const undoBtn = document.createElement('button'); undoBtn.className = 'sec'; undoBtn.textContent = 'Undo';
+  undoBtn.onclick = () => { undoCard(it); saveToVault(it); };
 
-      const rtBtn = document.createElement('button'); rtBtn.className = 'sec'; rtBtn.textContent = 'Retouch';
-      rtBtn.onclick = () => openRetouch(it);
+  const rtBtn = document.createElement('button'); rtBtn.className = 'sec'; rtBtn.textContent = 'Retouch';
+  rtBtn.onclick = () => openRetouch(it);
 
-      const addVarBtn = document.createElement('button'); addVarBtn.className = 'sec'; addVarBtn.textContent = '+ Color';
-      addVarBtn.onclick = () => { pushUndo(it); activeCardForVariant = it; document.getElementById('variantInput').click(); };
+  const addVarBtn = document.createElement('button'); addVarBtn.className = 'sec'; addVarBtn.textContent = '+ Color';
+  addVarBtn.onclick = () => { pushUndo(it); activeCardForVariant = it; document.getElementById('variantInput').click(); };
 
-      const btn = document.createElement('button'); btn.className = 'sec'; btn.textContent = 'Save';
-      btn.onclick = () => exportCleanPng(it);
+  const btn = document.createElement('button'); btn.className = 'sec'; btn.textContent = 'Save';
+  btn.onclick = () => exportCleanPng(it);
 
-      const bar2 = document.createElement('div'); bar2.className = 'bar';
-      const sizeLbl = document.createElement('label'); sizeLbl.textContent = 'Size ';
-      const slider = document.createElement('input'); slider.type = 'range'; slider.min = '25'; slider.max = '98'; slider.value = '70'; slider.style.width = '80px';
-      slider.onpointerdown = () => pushUndo(it);
-      slider.oninput = () => { it.layers.at(it.activeIdx).scale = Number(slider.value); draw(it); };
-      sizeLbl.appendChild(slider); it.slider = slider;
+  const bar2 = document.createElement('div'); bar2.className = 'bar';
+  const sizeLbl = document.createElement('label'); sizeLbl.textContent = 'Size ';
+  const slider = document.createElement('input'); slider.type = 'range'; slider.min = '25'; slider.max = '98'; slider.value = String(it.layers.at(0).scale); slider.style.width = '80px';
+  slider.onpointerdown = () => pushUndo(it);
+  slider.oninput = () => { it.layers.at(it.activeIdx).scale = Number(slider.value); draw(it); };
+  slider.onchange = () => saveToVault(it);
+  sizeLbl.appendChild(slider); it.slider = slider;
 
-      const tiltLbl = document.createElement('label'); tiltLbl.textContent = 'Rotate ';
-      const tiltSlider = document.createElement('input'); tiltSlider.type = 'range'; tiltSlider.min = '-45'; tiltSlider.max = '45'; tiltSlider.value = '0'; tiltSlider.style.width = '80px';
-      tiltSlider.onpointerdown = () => pushUndo(it);
-      tiltSlider.oninput = () => { it.layers.at(it.activeIdx).tilt = Number(tiltSlider.value); draw(it); };
-      tiltLbl.appendChild(tiltSlider); it.tiltSlider = tiltSlider;
+  const tiltLbl = document.createElement('label'); tiltLbl.textContent = 'Rotate ';
+  const tiltSlider = document.createElement('input'); tiltSlider.type = 'range'; tiltSlider.min = '-45'; tiltSlider.max = '45'; tiltSlider.value = String(it.layers.at(0).tilt || 0); tiltSlider.style.width = '80px';
+  tiltSlider.onpointerdown = () => pushUndo(it);
+  tiltSlider.oninput = () => { it.layers.at(it.activeIdx).tilt = Number(tiltSlider.value); draw(it); };
+  tiltSlider.onchange = () => saveToVault(it);
+  tiltLbl.appendChild(tiltSlider); it.tiltSlider = tiltSlider;
 
-      draw(it); attachGestures(it);
-      bar1.append(dots, undoBtn);
-      bar2.append(sizeLbl, tiltLbl, rtBtn, addVarBtn, btn);
-      card.append(canvas, bar1, bar2); gallery.prepend(card);
-    }
-    if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Done! ' + items.length + ' photos ready to edit & save.'); }
-  } catch (err) { showStatus('Error: ' + err.message); }
-  await keepAlive(false);
-  document.getElementById('pickBtn').disabled = false; e.target.value = '';
-};
-
-document.getElementById('variantInput').onchange = async (e) => {
-  const files = Array.from(e.target.files || []);
-  if (!files.length || !activeCardForVariant) return;
-  const it = activeCardForVariant;
-  await keepAlive(true);
-  try {
-    for (let i = 0; i < files.length; i++) {
-      showStatus('Adding color variant ' + (i + 1) + '...');
-      const count = it.layers.length;
-      const nx = Math.min(0.8, 0.35 + count * 0.18), ny = Math.min(0.75, 0.48 + count * 0.06);
-      if (count === 1) { it.layers.at(0).nx = 0.34; it.layers.at(0).scale = 54; }
-      const newLayer = await processFileToLayer(files.at(i), nx, ny, 54);
-      it.layers.push(newLayer); it.activeIdx = it.layers.length - 1; it.selected = true;
-      it.slider.value = '54'; it.tiltSlider.value = '0'; draw(it);
-    }
-    showStatus('Variant added! Touch to select, pinch to resize & rotate.');
-  } catch (err) { showStatus('Error: ' + err.message); }
-  await keepAlive(false);
-  e.target.value = '';
-};
-
-document.getElementById('downloadAllBtn').onclick = () => items.forEach((it, idx) => setTimeout(() => exportCleanPng(it), idx * 350));
-
+  draw(it); attachGestures(it);
+  bar1.append(dots, undoBtn);
+  bar2.append(sizeLbl, tiltLbl, rtBtn, addVarBtn, btn);
+  card.append(canvas, bar1, bar2); gallery.prepend(card);
+}
