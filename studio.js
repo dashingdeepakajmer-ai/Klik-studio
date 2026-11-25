@@ -239,23 +239,39 @@ function draw(it, hideBox) {
   const ctx = c.getContext('2d'), sc = it.scenes.at(it.sceneIdx);
   drawBackground(ctx, W, H, sc);
 
+  const useShadow = it.edgeShadow !== undefined ? it.edgeShadow : FX.border3d;
+  const useReflect = it.reflect !== undefined ? it.reflect : true;
+
   it.layers.forEach((layer, idx) => {
     const r = getLayerRect(layer, W, H);
     const rad = ((layer.tilt || 0) * Math.PI) / 180;
-    if (FX.floor) {
-      ctx.save(); ctx.translate(r.dx + r.dw / 2, r.dy + r.dh - H * 0.01); ctx.scale(1, 0.2);
-      const sg = ctx.createRadialGradient(0, 0, 8, 0, 0, r.dw * 0.48);
-      sg.addColorStop(0, 'rgba(0,0,0,0.38)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, r.dw * 0.48, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+
+    if (useReflect) {
+      ctx.save();
+      ctx.translate(r.dx + r.dw / 2, r.dy + r.dh * 1.48);
+      ctx.rotate(-rad);
+      ctx.scale(1, -0.52);
+      ctx.globalAlpha = 0.24;
+      ctx.filter = 'blur(3px)';
+      ctx.drawImage(layer.cutoutCanvas, layer.box.x, layer.box.y, layer.box.w, layer.box.h, -r.dw / 2, -r.dh / 2, r.dw, r.dh);
+      ctx.restore();
     }
+
+    if (FX.floor) {
+      ctx.save(); ctx.translate(r.dx + r.dw / 2, r.dy + r.dh - H * 0.008); ctx.scale(1, 0.16);
+      const sg = ctx.createRadialGradient(0, 0, 6, 0, 0, r.dw * 0.45);
+      sg.addColorStop(0, 'rgba(0,0,0,0.42)'); sg.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, r.dw * 0.45, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+    }
+
     ctx.save();
     ctx.translate(r.dx + r.dw / 2, r.dy + r.dh / 2);
     ctx.rotate(rad);
-    if (FX.border3d) {
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.44)';
-      ctx.shadowBlur = Math.round(Math.min(W, H) * 0.024);
-      ctx.shadowOffsetX = Math.round(W * 0.014);
-      ctx.shadowOffsetY = Math.round(H * 0.018);
+    if (useShadow) {
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.62)';
+      ctx.shadowBlur = Math.round(Math.min(W, H) * 0.011);
+      ctx.shadowOffsetX = Math.round(W * 0.008);
+      ctx.shadowOffsetY = Math.round(H * 0.010);
     }
     ctx.drawImage(layer.cutoutCanvas, layer.box.x, layer.box.y, layer.box.w, layer.box.h, -r.dw / 2, -r.dh / 2, r.dw, r.dh);
     if (!hideBox && it.selected && idx === it.activeIdx) {
@@ -272,6 +288,7 @@ function draw(it, hideBox) {
     ctx.drawImage(logoImg, pos.includes('r') ? W - lw - p : p, pos.includes('b') ? H - lh - p : p, lw, lh);
   }
 }
+
 
 function exportCleanPng(it) {
   draw(it, true);
