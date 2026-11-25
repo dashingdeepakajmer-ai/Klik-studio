@@ -6,17 +6,10 @@ const RATIOS = {
 };
 
 const FX = { proAI: true, floor: true, border3d: true, light: true, arch: true };
-let logoImg = null, removeBgFn = null, gradioApp = null, activeCardForVariant = null, wakeLock = null, stopBatch = false, timerId = null;
+let logoImg = null, removeBgFn = null, activeCardForVariant = null, wakeLock = null, stopBatch = false, timerId = null;
 const items = [], statusBox = document.getElementById('statusBox'), gallery = document.getElementById('gallery');
 const logoThumb = document.getElementById('logoThumb'), logoPos = document.getElementById('logoPos'), logoSize = document.getElementById('logoSize');
-const ratioSel = document.getElementById('ratioSel'), hfInput = document.getElementById('hfTokenInput');
-
-hfInput.value = localStorage.getItem('klik_hf_token') || '';
-document.getElementById('saveTokenBtn').onclick = () => {
-  localStorage.setItem('klik_hf_token', hfInput.value.trim());
-  gradioApp = null;
-  showStatus('Free HF Cloud Key Saved!');
-};
+const ratioSel = document.getElementById('ratioSel');
 
 window.addEventListener('pageshow', (e) => { if (e.persisted && !items.length) statusBox.style.display = 'none'; });
 
@@ -45,7 +38,7 @@ document.getElementById('tabAI').onclick = () => {
   FX.proAI = !FX.proAI;
   const el = document.getElementById('tabAI');
   el.className = FX.proAI ? 'chip on' : 'chip';
-  el.textContent = FX.proAI ? 'AI: Cloud BiRefNet (99%)' : 'AI: Offline Backup (MODNet)';
+  el.textContent = FX.proAI ? 'AI: Unlimited Pro (1024px)' : 'AI: Fast Mode (720px)';
 };
 
 
