@@ -510,3 +510,52 @@ function buildPhotoCard(it) {
   bar2.append(sizeLbl, tiltLbl, rtBtn, addVarBtn, btn);
   card.append(canvas, bar1, bar2); gallery.prepend(card);
 }
+function openVault() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('klik_vault', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('photos', { keyPath: 'id' });
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+
+async function saveToVault(it) {
+  try {
+    const db = await openVault();
+    const layersData = it.layers.map(l => ({
+      nx: l.nx, ny: l.ny, scale: l.scale, tilt: l.tilt || 0, box: l.box,
+      cutUrl: l.cutoutCanvas.toDataURL('image/png'),
+      rawUrl: l.rawCanvas.toDataURL('image/jpeg', 0.85)
+    }));
+    const tx = db.transaction('photos', 'readwrite');
+    tx.objectStore('photos').put({ id: it.id, name: it.name, scenes: it.scenes, sceneIdx: it.sceneIdx, layersData });
+  } catch (e) {}
+}
+
+async function restoreVault() {
+  try {
+    const db = await openVault();
+    const tx = db.transaction('photos', 'readonly');
+    const req = tx.objectStore('photos').getAll();
+    req.onsuccess = async () => {
+      const saved = req.result || [];
+      for (let i = 0; i < saved.length; i++) {
+        const rec = saved.at(i), layers = [];
+        for (let j = 0; j < rec.layersData.length; j++) {
+          const ld = rec.layersData.at(j);
+          const loadC = (u) => new Promise((r) => {
+            const im = new Image(); im.onload = () => {
+              const c = document.createElement('canvas'); c.width = im.width; c.height = im.height;
+              c.getContext('2d').drawImage(im, 0, 0); r(c);
+            }; im.src = u;
+          });
+          layers.push({ rawCanvas: await loadC(ld.rawUrl), cutoutCanvas: await loadC(ld.cutUrl), box: ld.box, nx: ld.nx, ny: ld.ny, scale: ld.scale, tilt: ld.tilt || 0 });
+        }
+        const it = { id: rec.id, name: rec.name, layers, activeIdx: 0, selected: false, scenes: rec.scenes, sceneIdx: rec.sceneIdx, canvas: null, history: new Array() };
+        items.push(it); buildPhotoCard(it);
+      }
+      if (items.length) { document.getElementById('actionsBar').style.display = 'block'; showStatus('Restored ' + items.length + ' saved photos.'); }
+    };
+  } catch (e) {}
+}
+restoreVault();
