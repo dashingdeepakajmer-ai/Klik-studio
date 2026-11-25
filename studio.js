@@ -305,6 +305,49 @@ function magicFloodErase(sx, sy) {
   }
   ctx.putImageData(imgData, 0, 0);
 }
+let rtBackup = null;
+function saveRtUndo() {
+  rtBackup = rtCanvas.getContext('2d').getImageData(0, 0, rtCanvas.width, rtCanvas.height);
+}
+function smartAutoRemoveStroke(cx, cy, radius) {
+  const w = rtCanvas.width, h = rtCanvas.height, ctx = rtCanvas.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data;
+  const visited = new Uint8Array(w * h);
+  const stack = new Array();
+  let rSum = 0, gSum = 0, bSum = 0, n = 0;
+
+  const rInt = Math.max(2, Math.round(radius));
+  for (let dy = -rInt; dy <= rInt; dy++) {
+    for (let dx = -rInt; dx <= rInt; dx++) {
+      if (dx * dx + dy * dy > rInt * rInt) continue;
+      const px = Math.round(cx + dx), py = Math.round(cy + dy);
+      if (px < 0 || px >= w || py < 0 || py >= h) continue;
+      const idx = py * w + px;
+      if (d.at(idx * 4 + 3) >= 30 && !visited.at(idx)) {
+        visited.fill(1, idx, idx + 1);
+        stack.push(idx);
+        rSum += d.at(idx * 4); gSum += d.at(idx * 4 + 1); bSum += d.at(idx * 4 + 2); n++;
+      }
+    }
+  }
+  if (!n) return;
+  const r0 = rSum / n, g0 = gSum / n, b0 = bSum / n;
+
+  while (stack.length) {
+    const idx = stack.pop();
+    d.fill(0, idx * 4 + 3, idx * 4 + 4);
+    const x = idx % w, y = (idx - x) / w;
+    const nb = new Array(x > 0 ? idx - 1 : -1, x < w - 1 ? idx + 1 : -1, y > 0 ? idx - w : -1, y < h - 1 ? idx + w : -1);
+    for (let k = 0; k < 4; k++) {
+      const ni = nb.at(k);
+      if (ni >= 0 && !visited.at(ni) && d.at(ni * 4 + 3) >= 30) {
+        const diff = Math.abs(d.at(ni * 4) - r0) + Math.abs(d.at(ni * 4 + 1) - g0) + Math.abs(d.at(ni * 4 + 2) - b0);
+        if (diff < 78) { visited.fill(1, ni, ni + 1); stack.push(ni); }
+      }
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
 
 function applyBrush(ev) {
   const rect = rtCanvas.getBoundingClientRect();
@@ -316,7 +359,7 @@ function applyBrush(ev) {
   const ctx = rtCanvas.getContext('2d');
 
   if (rtMode === 'magic') {
-    magicFloodErase(x, y);
+    smartAutoRemoveStroke(x, y, r);
   } else if (rtMode === 'erase') {
     ctx.save(); ctx.globalCompositeOperation = 'destination-out';
     ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
@@ -327,10 +370,10 @@ function applyBrush(ev) {
 }
 
 rtCanvas.addEventListener('mousedown', (e) => { rtDrawing = true; applyBrush(e); });
-rtCanvas.addEventListener('mousemove', (e) => { if (rtDrawing && rtMode !== 'magic') applyBrush(e); });
+rtCanvas.addEventListener('mousemove', (e) => { if (rtDrawing) applyBrush(e); });
 window.addEventListener('mouseup', () => { rtDrawing = false; });
 rtCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); rtDrawing = true; applyBrush(e); }, { passive: false });
-rtCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (rtDrawing && rtMode !== 'magic') applyBrush(e); }, { passive: false });
+rtCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (rtDrawing) applyBrush(e); }, { passive: false });
 rtCanvas.addEventListener('touchend', () => { rtDrawing = false; });
 
 document.getElementById('rtCancel').onclick = () => { rtModal.style.display = 'none'; rtTarget = null; };
@@ -366,7 +409,7 @@ async function processFileToLayer(file, nx, ny, scale) {
   }
   showStatus('Step 2/3: Preparing Photo...');
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  const maxDim = 1024, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
+  const maxDim = 900, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
   const prep = document.createElement('canvas');
   prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
   prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
@@ -376,9 +419,10 @@ async function processFileToLayer(file, nx, ny, scale) {
   const out = await removeBgFn(prep.toDataURL('image/jpeg', 0.94));
   const resImg = Array.isArray(out) ? out.at(0) : out;
   const cutoutCanvas = resImg.toCanvas();
-  autoCleanCanvas(cutoutCanvas);
   return { rawImg, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale };
 }
+
+
 
 
 
