@@ -256,10 +256,11 @@ function draw(it, hideBox) {
 
 function exportCleanPng(it) {
   draw(it, true);
-  const url = it.canvas.toDataURL('image/png');
+  const url = it.canvas.toDataURL('image/jpeg', 0.95);
   draw(it, false);
-  const a = document.createElement('a'); a.download = it.name; a.href = url; a.click();
+  const a = document.createElement('a'); a.download = it.name.replace(/\.png$/i, '.jpg'); a.href = url; a.click();
 }
+
 function attachGestures(it) {
   let dragIdx = -1, startX = 0, startY = 0, origNx = 0.5, origNy = 0.5;
   let pinchDist = 0, pinchAngle = 0, origScale = 70, origTilt = 0;
