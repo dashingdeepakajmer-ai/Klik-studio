@@ -604,27 +604,12 @@ function buildPhotoCard(it) {
   btn.onclick = () => exportCleanPng(it);
 
   const bar2 = document.createElement('div'); bar2.className = 'bar';
-  const sizeLbl = document.createElement('label'); sizeLbl.textContent = 'Size ';
-  const slider = document.createElement('input'); slider.type = 'range'; slider.min = '25'; slider.max = '98'; slider.value = String(it.layers.at(0).scale); slider.style.width = '72px';
-  slider.onpointerdown = () => pushUndo(it);
-  slider.oninput = () => { it.layers.at(it.activeIdx).scale = Number(slider.value); draw(it); };
-  slider.onchange = () => saveToVault(it);
-  sizeLbl.appendChild(slider); it.slider = slider;
-
-  const tiltLbl = document.createElement('label'); tiltLbl.textContent = 'Rotate ';
-  const tiltSlider = document.createElement('input'); tiltSlider.type = 'range'; tiltSlider.min = '-45'; tiltSlider.max = '45'; tiltSlider.value = String(it.layers.at(0).tilt || 0); tiltSlider.style.width = '72px';
-  tiltSlider.onpointerdown = () => pushUndo(it);
-  tiltSlider.oninput = () => { it.layers.at(it.activeIdx).tilt = Number(tiltSlider.value); draw(it); };
-  tiltSlider.onchange = () => saveToVault(it);
-  tiltLbl.appendChild(tiltSlider); it.tiltSlider = tiltSlider;
-
-  const bar3 = document.createElement('div'); bar3.className = 'bar';
   draw(it); attachGestures(it);
   bar1.append(dots, undoBtn);
-  bar2.append(sizeLbl, tiltLbl, shBtn, rfBtn);
-  bar3.append(rtBtn, addVarBtn, btn);
-  card.append(canvas, bar1, bar2, bar3); gallery.prepend(card);
+  bar2.append(shBtn, rfBtn, rtBtn, addVarBtn, btn);
+  card.append(canvas, bar1, bar2); gallery.prepend(card);
 }
+
 
 function openVault() {
   return new Promise((res, rej) => {
