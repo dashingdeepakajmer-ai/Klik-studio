@@ -489,13 +489,43 @@ function applyBrush(ev) {
   else if (rtMode === 'restore' && rtTarget) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.clip(); ctx.drawImage(rtTarget.layer.rawCanvas, 0, 0, rtCanvas.width, rtCanvas.height); ctx.restore(); }
 }
 
+let rtZoom = 1, rtPanX = 0, rtPanY = 0, rtPinch0 = 0, rtZoom0 = 1;
+function updateRtTransform() {
+  rtCanvas.style.transform = 'translate(' + rtPanX + 'px,' + rtPanY + 'px) scale(' + rtZoom + ')';
+}
+const origOpenRetouch = openRetouch;
+openRetouch = function(it) { rtZoom = 1; rtPanX = 0; rtPanY = 0; updateRtTransform(); origOpenRetouch(it); };
+
 function startRtDraw(e) { rtBackup = rtCanvas.getContext('2d').getImageData(0, 0, rtCanvas.width, rtCanvas.height); rtDrawing = true; applyBrush(e); }
 rtCanvas.addEventListener('mousedown', startRtDraw);
 rtCanvas.addEventListener('mousemove', (e) => { if (rtDrawing) applyBrush(e); });
 window.addEventListener('mouseup', () => { rtDrawing = false; });
-rtCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startRtDraw(e); }, { passive: false });
-rtCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); if (rtDrawing) applyBrush(e); }, { passive: false });
-rtCanvas.addEventListener('touchend', () => { rtDrawing = false; });
+
+rtCanvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 2) {
+    rtDrawing = false;
+    const t0 = e.touches.item(0), t1 = e.touches.item(1);
+    rtPinch0 = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    rtZoom0 = rtZoom;
+    return;
+  }
+  startRtDraw(e);
+}, { passive: false });
+
+rtCanvas.addEventListener('touchmove', (e) => {
+  e.preventDefault();
+  if (e.touches.length === 2 && rtPinch0 > 0) {
+    const t0 = e.touches.item(0), t1 = e.touches.item(1);
+    const d = Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY);
+    rtZoom = Math.max(1, Math.min(4.5, rtZoom0 * (d / rtPinch0)));
+    updateRtTransform();
+    return;
+  }
+  if (rtDrawing) applyBrush(e);
+}, { passive: false });
+
+rtCanvas.addEventListener('touchend', () => { rtDrawing = false; rtPinch0 = 0; });
 
 document.getElementById('rtCancel').onclick = () => { rtModal.style.display = 'none'; rtTarget = null; };
 document.getElementById('rtDone').onclick = () => {
