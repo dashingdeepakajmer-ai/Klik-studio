@@ -539,9 +539,9 @@ document.getElementById('rtDone').onclick = () => {
   rtModal.style.display = 'none'; rtTarget = null;
 };
  async function processFileToLayer(file, nx, ny, scale) {
-  showStatus('Preparing High-Res Photo...');
+  showStatus('Preparing Photo...');
   const rawImg = await new Promise((res, rej) => { const im = new Image(); im.onload = () => res(im); im.onerror = rej; im.src = URL.createObjectURL(file); });
-  const maxDim = FX.proAI ? 1024 : 720, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
+  const maxDim = FX.proAI ? 768 : 580, ratio = Math.min(1, maxDim / Math.max(rawImg.width, rawImg.height));
   const prep = document.createElement('canvas');
   prep.width = Math.round(rawImg.width * ratio); prep.height = Math.round(rawImg.height * ratio);
   prep.getContext('2d').drawImage(rawImg, 0, 0, prep.width, prep.height);
@@ -560,12 +560,13 @@ document.getElementById('rtDone').onclick = () => {
     });
   }
   showStatus('AI Cutting Product (Unlimited)...', true);
-  await new Promise((r) => setTimeout(r, 150));
-  const out = await removeBgFn(prep.toDataURL('image/png'));
+  await new Promise((r) => setTimeout(r, 250));
+  const out = await removeBgFn(prep.toDataURL('image/jpeg', 0.92));
   const resImg = Array.isArray(out) ? out.at(0) : out;
   const cutoutCanvas = resImg.toCanvas();
   return { rawCanvas: prep, cutoutCanvas, box: trimBox(cutoutCanvas), nx, ny, scale, tilt: 0 };
 }
+
 
 
 
