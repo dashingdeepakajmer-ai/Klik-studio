@@ -339,8 +339,9 @@ function exportCleanPng(it) {
 }
 
 function attachGestures(it) {
-  let dragIdx = -1, startX = 0, startY = 0, origNx = 0.5, origNy = 0.5;
-  let pinchDist = 0, pinchAngle = 0, origScale = 70, origTilt = 0;
+  let dragIdx = -1, startX = 0, startY = 0, origNx = 0.5, origNy = 0.5, moved = false;
+  let pinchDist = 0, pinchAngle = 0, origScale = 78, origTilt = 0;
+  it.canvas.style.touchAction = 'pan-y';
 
   const getPt = (t) => {
     const rect = it.canvas.getBoundingClientRect();
@@ -348,7 +349,8 @@ function attachGestures(it) {
   };
 
   it.canvas.addEventListener('touchstart', (ev) => {
-    if (ev.touches.length === 2) {
+    moved = false;
+    if (ev.touches.length === 2 && it.selected) {
       ev.preventDefault();
       dragIdx = -1;
       pushUndo(it);
@@ -356,30 +358,33 @@ function attachGestures(it) {
       pinchDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
       pinchAngle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
       const l = it.layers.at(it.activeIdx);
-      origScale = l.scale; origTilt = l.tilt || 0; it.selected = true; draw(it);
+      origScale = l.scale; origTilt = l.tilt || 0;
       return;
     }
     const p = getPt(ev.touches.item(0));
-    let hit = false;
+    let hitIdx = -1;
     for (let i = it.layers.length - 1; i >= 0; i--) {
       const r = getLayerRect(it.layers.at(i), it.canvas.width, it.canvas.height);
-      const pad = 60;
+      const pad = 35;
       if (p.x >= r.dx - pad && p.x <= r.dx + r.dw + pad && p.y >= r.dy - pad && p.y <= r.dy + r.dh + pad) {
-        pushUndo(it);
-        dragIdx = i; it.activeIdx = i; it.selected = true; hit = true;
-        startX = p.x; startY = p.y;
-        origNx = it.layers.at(i).nx; origNy = it.layers.at(i).ny;
-        it.slider.value = String(it.layers.at(i).scale);
-        it.tiltSlider.value = String(it.layers.at(i).tilt || 0);
-        break;
+        hitIdx = i; break;
       }
     }
-    if (!hit) it.selected = false;
-    draw(it);
+    if (it.selected && hitIdx >= 0) {
+      ev.preventDefault();
+      pushUndo(it);
+      dragIdx = hitIdx; it.activeIdx = hitIdx;
+      startX = p.x; startY = p.y;
+      origNx = it.layers.at(hitIdx).nx; origNy = it.layers.at(hitIdx).ny;
+    } else {
+      dragIdx = -1;
+      it._pendingHit = hitIdx;
+    }
   }, { passive: false });
 
   it.canvas.addEventListener('touchmove', (ev) => {
-    if (ev.touches.length === 2 && pinchDist > 0) {
+    moved = true;
+    if (ev.touches.length === 2 && it.selected && pinchDist > 0) {
       ev.preventDefault();
       const p1 = getPt(ev.touches.item(0)), p2 = getPt(ev.touches.item(1));
       const newDist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -387,12 +392,10 @@ function attachGestures(it) {
       const l = it.layers.at(it.activeIdx);
       l.scale = Math.max(25, Math.min(98, Math.round(origScale * (newDist / pinchDist))));
       l.tilt = Math.max(-45, Math.min(45, Math.round(origTilt + ((newAngle - pinchAngle) * 180) / Math.PI)));
-      it.slider.value = String(l.scale);
-      it.tiltSlider.value = String(l.tilt);
       draw(it);
       return;
     }
-    if (dragIdx < 0) return;
+    if (!it.selected || dragIdx < 0) return;
     ev.preventDefault();
     const p = getPt(ev.touches.item(0)), l = it.layers.at(dragIdx);
     l.nx = Math.max(0.08, Math.min(0.92, origNx + (p.x - startX) / it.canvas.width));
@@ -400,8 +403,22 @@ function attachGestures(it) {
     draw(it);
   }, { passive: false });
 
-  it.canvas.addEventListener('touchend', () => { dragIdx = -1; pinchDist = 0; });
+  it.canvas.addEventListener('touchend', () => {
+    if (!moved) {
+      if (it._pendingHit >= 0) {
+        it.selected = true; it.activeIdx = it._pendingHit;
+        it.canvas.style.touchAction = 'none';
+      } else if (it.selected && dragIdx < 0) {
+        it.selected = false;
+        it.canvas.style.touchAction = 'pan-y';
+      }
+      draw(it);
+    }
+    if (it.selected && (dragIdx >= 0 || pinchDist > 0)) saveToVault(it);
+    dragIdx = -1; pinchDist = 0; it._pendingHit = -1;
+  });
 }
+
 let rtTarget = null, rtMode = 'magic', rtDrawing = false, rtBackup = null;
 const rtModal = document.getElementById('retouchModal'), rtCanvas = document.getElementById('retouchCanvas');
 const brushSize = document.getElementById('brushSize');
