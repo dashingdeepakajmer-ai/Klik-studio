@@ -139,7 +139,37 @@ function detectSoleAndScenes(img) {
   return { scenes, isBlackSole };
 }
 
+function cleanStrayPixels(c) {
+  const w = c.width, h = c.height, ctx = c.getContext('2d');
+  const imgData = ctx.getImageData(0, 0, w, h), d = imgData.data;
+  const labels = new Int32Array(w * h), sizes = new Array(0), stack = new Array();
+  let compId = 0, bestSize = 0;
+  for (let i = 0; i < w * h; i++) {
+    if (d.at(i * 4 + 3) > 40 && !labels.at(i)) {
+      compId++; let cnt = 0; stack.push(i); labels.fill(compId, i, i + 1);
+      while (stack.length) {
+        const idx = stack.pop(); cnt++;
+        const x = idx % w, y = (idx - x) / w;
+        const nb = new Array(x > 0 ? idx - 1 : -1, x < w - 1 ? idx + 1 : -1, y > 0 ? idx - w : -1, y < h - 1 ? idx + w : -1);
+        for (let k = 0; k < 4; k++) {
+          const ni = nb.at(k);
+          if (ni >= 0 && d.at(ni * 4 + 3) > 40 && !labels.at(ni)) { labels.fill(compId, ni, ni + 1); stack.push(ni); }
+        }
+      }
+      sizes[compId] = cnt;
+      if (cnt > bestSize) bestSize = cnt;
+    }
+  }
+  const minKeep = Math.max(400, bestSize * 0.18);
+  for (let i = 0; i < w * h; i++) {
+    const id = labels.at(i);
+    if (id && sizes.at(id) < minKeep) d.fill(0, i * 4 + 3, i * 4 + 4);
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
 function trimBox(c) {
+  cleanStrayPixels(c);
   const ctx = c.getContext('2d'), width = c.width, height = c.height;
   const data = ctx.getImageData(0, 0, width, height).data;
   let x0 = width, y0 = height, x1 = 0, y1 = 0;
@@ -155,36 +185,54 @@ function drawBackground(ctx, W, H, sc) {
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
 
   if (FX.light) {
-    const spot = ctx.createRadialGradient(W * 0.35, H * 0.22, W * 0.05, W * 0.5, H * 0.45, Math.max(W, H) * 0.85);
+    const spot = ctx.createRadialGradient(W * 0.45, H * 0.25, W * 0.04, W * 0.5, H * 0.48, Math.max(W, H) * 0.85);
     spot.addColorStop(0, sc.glow); spot.addColorStop(1, 'rgba(0,0,0,0)');
     ctx.fillStyle = spot; ctx.fillRect(0, 0, W, H);
   }
   if (!FX.arch) return;
+
   if (sc.type === 'bokeh') {
-    const orbs = new Array(new Array(0.18, 0.24, 0.16), new Array(0.82, 0.2, 0.19), new Array(0.75, 0.62, 0.14), new Array(0.22, 0.66, 0.13));
+    ctx.save(); ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.72, W, H * 0.28);
+    ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = 3;
+    for (let i = 1; i <= 4; i++) {
+      const y = H * (0.72 + i * 0.065);
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(W * 0.28, H * 0.72); ctx.lineTo(W * 0.12, H);
+    ctx.moveTo(W * 0.72, H * 0.72); ctx.lineTo(W * 0.88, H); ctx.stroke();
+    ctx.fillStyle = sc.rim; ctx.fillRect(0, H * 0.72, W, 4); ctx.restore();
+  } else if (sc.type === 'satin') {
+    ctx.save();
+    for (let i = -3; i <= 3; i++) {
+      const rg = ctx.createLinearGradient(W * 0.5 + i * W * 0.14, 0, W * 0.5 + i * W * 0.28, H);
+      rg.addColorStop(0, 'rgba(255,255,255,0)'); rg.addColorStop(0.5, sc.glow); rg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0, H * 0.75, W, H * 0.25); ctx.restore();
+  } else if (sc.type === 'arch') {
+    ctx.save(); ctx.fillStyle = 'rgba(0,0,0,0.10)';
+    ctx.beginPath(); ctx.arc(W * 0.52, H * 0.43, W * 0.35, Math.PI, 0); ctx.lineTo(W * 0.87, H * 0.76); ctx.lineTo(W * 0.17, H * 0.76); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = sc.rim; ctx.globalAlpha = 0.65;
+    ctx.beginPath(); ctx.arc(W * 0.5, H * 0.43, W * 0.34, Math.PI, 0); ctx.lineTo(W * 0.84, H * 0.76); ctx.lineTo(W * 0.16, H * 0.76); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1; ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.76, W, H * 0.24); ctx.restore();
+  } else if (sc.type === 'marble') {
+    ctx.save(); ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.73, W, H * 0.27);
+    ctx.strokeStyle = 'rgba(255,255,255,0.28)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(0, H * 0.81); ctx.bezierCurveTo(W * 0.3, H * 0.77, W * 0.6, H * 0.89, W, H * 0.83);
+    ctx.moveTo(W * 0.15, H); ctx.bezierCurveTo(W * 0.4, H * 0.9, W * 0.7, H * 0.94, W * 0.95, H * 0.88); ctx.stroke();
+    ctx.fillStyle = sc.rim; ctx.fillRect(0, H * 0.73, W, 5); ctx.restore();
+  } else {
+    ctx.save();
+    const orbs = new Array(new Array(0.2, 0.25, 0.22), new Array(0.8, 0.22, 0.25), new Array(0.76, 0.6, 0.18), new Array(0.24, 0.62, 0.16));
     orbs.forEach(o => {
       const rg = ctx.createRadialGradient(W * o.at(0), H * o.at(1), 4, W * o.at(0), H * o.at(1), W * o.at(2));
       rg.addColorStop(0, sc.glow); rg.addColorStop(1, 'rgba(255,255,255,0)');
       ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(W * o.at(0), H * o.at(1), W * o.at(2), 0, Math.PI * 2); ctx.fill();
     });
-    ctx.fillStyle = sc.pod; ctx.globalAlpha = 0.35; ctx.fillRect(0, H * 0.76, W, H * 0.24); ctx.globalAlpha = 1;
-  } else if (sc.type === 'satin') {
-    for (let i = 0; i < 4; i++) {
-      const sg = ctx.createLinearGradient(0, H * (0.15 + i * 0.2), W, H * (0.28 + i * 0.2));
-      sg.addColorStop(0, 'rgba(255,255,255,0)'); sg.addColorStop(0.5, sc.glow); sg.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = sg; ctx.fillRect(0, 0, W, H);
-    }
-  } else if (sc.type === 'arch') {
-    ctx.fillStyle = sc.rim; ctx.globalAlpha = 0.45;
-    ctx.beginPath(); ctx.arc(W * 0.5, H * 0.42, W * 0.34, Math.PI, 0); ctx.lineTo(W * 0.84, H * 0.77); ctx.lineTo(W * 0.16, H * 0.77); ctx.closePath(); ctx.fill();
-    ctx.globalAlpha = 1; ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.77, W, H * 0.23);
-  } else if (sc.type === 'marble') {
-    ctx.fillStyle = sc.pod; ctx.fillRect(0, H * 0.76, W, H * 0.24);
-    ctx.fillStyle = sc.rim; ctx.fillRect(0, H * 0.76, W, 4);
-  } else {
-    ctx.fillStyle = sc.pod; ctx.globalAlpha = 0.4; ctx.fillRect(0, H * 0.77, W, H * 0.23); ctx.globalAlpha = 1;
+    ctx.fillStyle = sc.pod; ctx.globalAlpha = 0.55; ctx.fillRect(0, H * 0.76, W, H * 0.24); ctx.restore();
   }
 }
+
 
 function getLayerRect(layer, W, H) {
   const b = layer.box, pct = layer.scale / 100;
