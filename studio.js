@@ -694,7 +694,7 @@ document.getElementById('variantInput').onchange = async (e) => {
       if (count === 1) { it.layers.at(0).nx = 0.34; it.layers.at(0).scale = 58; }
       const newLayer = await processFileToLayer(files.at(i), nx, ny, 58);
       it.layers.push(newLayer); it.activeIdx = it.layers.length - 1; it.selected = true;
-      it.slider.value = '58'; it.tiltSlider.value = '0'; draw(it); await saveToVault(it);
+     if (it.slider) it.slider.value = '58'; it.tiltSlider.value = '0'; draw(it); await saveToVault(it);
     }
     showStatus('Variant added! Touch to select, pinch to resize & rotate.');
   } catch (err) { showStatus('Error: ' + err.message); }
